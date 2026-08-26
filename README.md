@@ -68,7 +68,9 @@ identifié : `user_id` dans le corps de la requête, la query string ou l'en-tê
 | `GET` | `/api/movements?reference=` | historique filtrable |
 | `GET` `PUT` | `/api/settings` | réglages (thème, nom du local…) |
 | `GET` | `/api/export/xlsx` · `/api/export/csv` | export des articles (avec famille) |
-| `GET` | `/api/backups` | sauvegardes disponibles |
+| `GET` `POST` | `/api/backups` | sauvegardes disponibles, création à la demande |
+| `POST` | `/api/backups/:nom/restore` | restauration (copie de sécurité automatique avant) |
+| `GET` `POST` | `/api/demo` | jeu de démonstration, uniquement sur une base sans stock |
 
 ## Périmètre
 
@@ -99,5 +101,5 @@ de face). Ce code est toujours **calculé**, jamais saisi à la main.
 - [x] Étape 5 — Vue de face, recherche, liste de préparation
 - [x] Étape 6 — Édition d'articles, drag & drop, historique
 - [x] Étape 7 — Mode Inventaire initial
-- [ ] Étape 8 — Paramètres, export Excel/CSV, sauvegardes, données de démo
+- [x] Étape 8 — Paramètres, export Excel/CSV, sauvegardes, données de démo
 - [ ] Étape 9 — Raccourci bureau, README final, critères d'acceptation

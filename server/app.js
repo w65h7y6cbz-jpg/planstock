@@ -9,6 +9,7 @@ import { createMovementsRouter } from './routes/movements.js';
 import { createSettingsRouter } from './routes/settings.js';
 import { createExportRouter } from './routes/export.js';
 import { createBackupsRouter } from './routes/backups.js';
+import { createDemoRouter } from './routes/demo.js';
 
 /**
  * Construit l'application Express autour d'une base déjà ouverte.
@@ -37,7 +38,8 @@ export function createApp(db, options = {}) {
   app.use('/api/movements', createMovementsRouter(db));
   app.use('/api/settings', createSettingsRouter(db));
   app.use('/api/export', createExportRouter(db));
-  app.use('/api/backups', createBackupsRouter(backupsDir));
+  app.use('/api/backups', createBackupsRouter(db, backupsDir));
+  app.use('/api/demo', createDemoRouter(db));
 
   app.use('/api', (req, res) => {
     res.status(404).json({ error: 'Point d’entrée d’API inconnu.' });

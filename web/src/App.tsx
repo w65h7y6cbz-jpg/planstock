@@ -9,8 +9,11 @@ import { Toasts } from './components/Toasts';
 import { TopBar } from './components/TopBar';
 import { InventoryMode } from './features/inventory/InventoryMode';
 import { ItemForm } from './features/items/ItemForm';
+import { AppearanceView } from './features/settings/AppearanceView';
+import { DataView } from './features/settings/DataView';
 import { MovementsView } from './features/settings/MovementsView';
 import { PlanEditor } from './features/settings/PlanEditor';
+import { UsersView } from './features/settings/UsersView';
 import { useCurrentUser } from './hooks/useCurrentUser';
 import { usePickList } from './hooks/usePickList';
 import { useRacks } from './hooks/useRacks';
@@ -24,14 +27,29 @@ type FormState =
   | { mode: 'edit'; item: Item }
   | null;
 
-type SettingsTab = 'plan' | 'history' | 'data';
+const SETTINGS_TABS = [
+  { id: 'users', label: 'Utilisateurs' },
+  { id: 'plan', label: 'Plan' },
+  { id: 'history', label: 'Historique' },
+  { id: 'data', label: 'Données' },
+  { id: 'appearance', label: 'Apparence' },
+] as const;
+
+type SettingsTab = (typeof SETTINGS_TABS)[number]['id'];
 
 const messageOf = (cause: unknown, fallback: string) =>
   cause instanceof ApiError || cause instanceof Error ? cause.message : fallback;
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
-  const { users, currentUser, loading: usersLoading, error: usersError, selectUser } = useCurrentUser();
+  const {
+    users,
+    currentUser,
+    loading: usersLoading,
+    error: usersError,
+    selectUser,
+    reloadUsers,
+  } = useCurrentUser();
   const racksState = useRacks();
   const pickList = usePickList();
   const { toasts, notify, dismiss } = useToasts();
@@ -101,6 +119,24 @@ export function App() {
     },
     [racksState, pickList],
   );
+
+  /**
+   * Rechargement complet après remplacement des données (restauration, démo).
+   * La liste de préparation est vidée : ses lignes pointent vers des articles
+   * qui n'existent peut-être plus.
+   */
+  const reloadEverything = useCallback(async () => {
+    pickList.clear();
+    setPlanFocus(null);
+    setRefreshToken((token) => token + 1);
+    await Promise.all([racksState.reload(), reloadUsers()]);
+    try {
+      setSettings(await api.settings.get());
+      setServerError(null);
+    } catch (cause) {
+      setServerError(messageOf(cause, 'Serveur injoignable.'));
+    }
+  }, [pickList, racksState, reloadUsers]);
 
   /** Une référence trouvée rejoint la liste et allume son emplacement. */
   const pickItem = useCallback(
@@ -388,36 +424,23 @@ export function App() {
           }}
         >
           <div className={styles.tabs} role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={settingsTab === 'plan'}
-              className={`${styles.tab} ${settingsTab === 'plan' ? styles.tabActive : ''}`}
-              onClick={() => setSettingsTab('plan')}
-            >
-              Plan
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={settingsTab === 'history'}
-              className={`${styles.tab} ${settingsTab === 'history' ? styles.tabActive : ''}`}
-              onClick={() => setSettingsTab('history')}
-            >
-              Historique
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={settingsTab === 'data'}
-              className={`${styles.tab} ${settingsTab === 'data' ? styles.tabActive : ''}`}
-              onClick={() => setSettingsTab('data')}
-            >
-              Données
-            </button>
+            {SETTINGS_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={settingsTab === tab.id}
+                className={`${styles.tab} ${settingsTab === tab.id ? styles.tabActive : ''}`}
+                onClick={() => setSettingsTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          {settingsTab === 'plan' ? (
+          {settingsTab === 'users' ? (
+            <UsersView currentUser={currentUser} onChanged={reloadUsers} />
+          ) : settingsTab === 'plan' ? (
             <PlanEditor
               racks={racksState.racks}
               error={racksState.error}
@@ -430,27 +453,24 @@ export function App() {
             />
           ) : settingsTab === 'history' ? (
             <MovementsView />
+          ) : settingsTab === 'data' ? (
+            <DataView
+              currentUser={currentUser}
+              onDataReplaced={reloadEverything}
+              onRelaunchInventory={() => {
+                setSettingsTab(null);
+                setInventoryOpen(true);
+              }}
+            />
           ) : (
-            <div className={styles.dataTab}>
-              <h3 className={styles.panelTitle}>Inventaire initial</h3>
-              <p className={styles.dataHint}>
-                Mode guidé pour saisir le stock : référence, désignation, puis clic sur la case du
-                plan. Il démarre tout seul quand la base est vide.
-              </p>
-              <button
-                type="button"
-                className={styles.dataButton}
-                onClick={() => {
-                  setSettingsTab(null);
-                  setInventoryOpen(true);
-                }}
-              >
-                Relancer l’inventaire initial
-              </button>
-              <p className={styles.dataHint}>
-                Export Excel/CSV, sauvegardes et restauration : étape 8.
-              </p>
-            </div>
+            <AppearanceView
+              theme={theme}
+              onToggleTheme={toggleTheme}
+              settings={settings}
+              racks={racksState.racks}
+              onSettingsChanged={setSettings}
+              onRacksChanged={racksState.reload}
+            />
           )}
         </Modal>
       ) : null}

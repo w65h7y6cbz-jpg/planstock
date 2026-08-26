@@ -1,4 +1,5 @@
 import type {
+  Backup,
   Health,
   Item,
   ItemKind,
@@ -128,7 +129,23 @@ export const api = {
   },
 
   backups: {
-    list: () => request<{ name: string; size: number; created_at: string }[]>('/backups'),
+    list: () => request<Backup[]>('/backups'),
+    create: (userId: number) =>
+      request<{ created: string }>('/backups', { method: 'POST', ...json({ user_id: userId }) }),
+    restore: (userId: number, name: string) =>
+      request<{ restored: string; safetyBackup: string }>(
+        `/backups/${encodeURIComponent(name)}/restore`,
+        { method: 'POST', ...json({ user_id: userId }) },
+      ),
+  },
+
+  demo: {
+    status: () => request<{ available: boolean }>('/demo'),
+    seed: (userId: number) =>
+      request<{ racks: number; items: number }>('/demo', {
+        method: 'POST',
+        ...json({ user_id: userId }),
+      }),
   },
 
   exportUrl: (format: 'xlsx' | 'csv') => `/api/export/${format}`,
