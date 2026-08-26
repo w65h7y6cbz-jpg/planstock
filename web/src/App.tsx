@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, type AccessState } from './api';
 import { AccessScreen } from './components/AccessScreen';
+import { GuidedTour } from './components/GuidedTour';
 import { Modal } from './components/Modal';
 import { PickDrawer } from './components/PickDrawer';
 import { PinPad } from './components/PinPad';
@@ -10,6 +11,8 @@ import { SearchHome, type SearchHandle } from './components/SearchHome';
 import { SiteChooser } from './components/SiteChooser';
 import { Toasts } from './components/Toasts';
 import { TopBar, type MenuAction } from './components/TopBar';
+import { DemoBanner } from './features/demo/DemoBanner';
+import { TOUR_REFERENCE, tourSteps } from './features/demo/tourSteps';
 import { InventoryMode } from './features/inventory/InventoryMode';
 import { CustomersView } from './features/settings/CustomersView';
 import { DataView } from './features/settings/DataView';
@@ -82,6 +85,7 @@ export function App() {
     site,
     loading: sitesLoading,
     error: sitesError,
+    isDemo,
     selectSite,
     reloadSites,
   } = useSites();
@@ -123,6 +127,8 @@ export function App() {
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [serverDown, setServerDown] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
+  /** Visite guidée : ouverte d'office à l'arrivée dans le local de démonstration. */
+  const [tourOpen, setTourOpen] = useState(true);
 
   const searchRef = useRef<SearchHandle>(null);
 
@@ -285,6 +291,30 @@ export function App() {
     [site, showItem],
   );
 
+  /**
+   * Étapes de la visite guidée du local de démonstration.
+   *
+   * Mémorisées, et pas seulement par économie : chaque étape porte un `enter`
+   * qui change l'état de l'application, donc provoque un rendu. Un tableau
+   * reconstruit à chaque rendu relancerait ce `enter` indéfiniment.
+   */
+  const demoTour = useMemo(
+    () =>
+      tourSteps({
+        reference: TOUR_REFERENCE,
+        customerName: customers[0]?.name ?? null,
+        customerId: customers[0]?.id ?? null,
+        search: (reference, customerId) => void runSearch(reference, customerId ?? null),
+        openPlan: setPlanOpen,
+        openPickList: setDrawerOpen,
+        goHome,
+      }),
+    // `runSearch` et `goHome` sont stables sur la durée d'une visite ; les
+    // suivre relancerait l'étape en cours à chaque recherche.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [customers],
+  );
+
   /** Déplacement d'un article, avec possibilité d'annuler. */
   const moveItem = useCallback(
     async (
@@ -431,6 +461,14 @@ export function App() {
 
   return (
     <div className={styles.app}>
+      {isDemo ? (
+        <DemoBanner
+          userId={currentUser?.id ?? null}
+          onStartTour={() => setTourOpen(true)}
+          onReset={reloadEverything}
+        />
+      ) : null}
+
       <TopBar
         site={site}
         users={users}
@@ -579,6 +617,10 @@ export function App() {
             onCancel={cancelPin}
           />
         </Modal>
+      ) : null}
+
+      {isDemo && tourOpen ? (
+        <GuidedTour steps={demoTour} onFinish={() => setTourOpen(false)} />
       ) : null}
 
       <Toasts toasts={toasts} onDismiss={dismiss} />

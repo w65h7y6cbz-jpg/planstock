@@ -1,0 +1,197 @@
+/* Visite guidée.
+   La couche ne capte pas les clics : on reste libre d'essayer l'application
+   pendant la visite, ce qui est tout l'intérêt d'une démonstration en direct.
+   Seule la bulle attrape les siens. */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  pointer-events: none;
+}
+
+/* Le projecteur. L'ombre déborde très largement pour assombrir tout le reste
+   de l'écran sans avoir à découper quoi que ce soit. */
+.spot {
+  position: absolute;
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 0 0 9999px rgba(6, 8, 14, 0.62),
+    0 0 0 2px var(--accent);
+  transition:
+    top 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    left 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Étape sans point d'ancrage : l'écran s'assombrit d'un bloc. */
+.veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 8, 14, 0.62);
+}
+
+.bubble {
+  position: absolute;
+  width: min(420px, calc(100vw - 32px));
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(6, 8, 14, 0.35);
+  pointer-events: auto;
+  transition:
+    top 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    left 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.step {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.body strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.body p {
+  margin: 0 0 var(--space-2);
+}
+
+.body p:last-child {
+  margin-bottom: 0;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* La barre d'avancement : on sait toujours combien il reste. */
+.dots {
+  display: flex;
+  gap: 5px;
+  margin-right: auto;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  background: var(--line-strong);
+  border-radius: 50%;
+  transition: background var(--transition);
+}
+
+.dotOn {
+  background: var(--accent);
+}
+
+.dotDone {
+  background: var(--accent-border);
+}
+
+.ghost {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  font-size: 14px;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.ghost:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.next {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-4);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.next:hover {
+  filter: brightness(1.08);
+}
+
+.kbd {
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+/* Bandeau permanent du local de démonstration : personne ne doit croire une
+   seconde qu'il regarde le vrai stock. */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: 6px var(--space-4);
+  font-size: 13px;
+  color: var(--accent-contrast);
+  background: var(--accent);
+}
+
+.bannerText strong {
+  font-weight: 700;
+}
+
+.bannerButton {
+  min-height: 26px;
+  padding: 0 var(--space-3);
+  font-size: 12px;
+  font-weight: 600;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.bannerButton:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.bannerButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spot,
+  .bubble {
+    transition: none;
+  }
+}

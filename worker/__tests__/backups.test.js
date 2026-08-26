@@ -66,7 +66,11 @@ describe('sauvegardes', () => {
     });
 
     const { body } = await api('/api/backups');
-    expect(body.counts).toMatchObject({ sites: 2, users: 1, racks: 1, items: 1 });
+    // Trois locaux : les deux vrais, plus celui de démonstration. Ces compteurs
+    // disent ce que pèse la sauvegarde, pas ce que l'écran de choix montre — et
+    // le local de démonstration doit bien y figurer, sinon une restauration le
+    // ferait disparaître et l'adresse `?demo` tomberait dans le vide.
+    expect(body.counts).toMatchObject({ sites: 3, users: 1, racks: 1, items: 1 });
   });
 
   it('exporte un fichier complet, puis le restaure à l’identique', async () => {
@@ -103,7 +107,7 @@ describe('sauvegardes', () => {
       json: { user_id: context.userId, backup },
     });
     expect(restored.status).toBe(200);
-    expect(restored.body.counts).toMatchObject({ items: 1, racks: 1, sites: 2 });
+    expect(restored.body.counts).toMatchObject({ items: 1, racks: 1, sites: 3 });
 
     const après = await api(`/api/items/search?q=UK707EL&site_id=${context.siteId}`);
     expect(après.body.exact.designation).toBe('Toner noir');

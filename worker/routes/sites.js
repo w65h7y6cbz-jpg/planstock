@@ -79,11 +79,18 @@ function readOutline(value, fallback) {
 
 export const sites = new Hono();
 
-sites.get('/', async (c) => c.json(await listSites(c.get('db'))));
+/** `?hidden=1` ajoute le local de démonstration, que l'écran de choix ignore. */
+const wantsHidden = (c) => c.req.query('hidden') === '1';
+
+sites.get('/', async (c) =>
+  c.json(await listSites(c.get('db'), { includeHidden: wantsHidden(c) })),
+);
 
 sites.get('/:id', async (c) => {
   const id = routeId(c);
-  const site = (await listSites(c.get('db'))).find((row) => row.id === id);
+  const site = (await listSites(c.get('db'), { includeHidden: true })).find(
+    (row) => row.id === id,
+  );
   if (!site) throw notFound('Local introuvable.');
   return c.json(site);
 });
@@ -138,5 +145,7 @@ sites.patch('/:id', async (c) => {
     id,
   );
 
-  return c.json((await listSites(db)).find((row) => row.id === id));
+  // `includeHidden` : sans lui, régler le local de démonstration renverrait
+  // `undefined` et l'interface croirait la modification perdue.
+  return c.json((await listSites(db, { includeHidden: true })).find((row) => row.id === id));
 });

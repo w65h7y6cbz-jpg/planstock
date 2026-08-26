@@ -70,15 +70,40 @@ export function createApp() {
     return next();
   });
 
+  /**
+   * État de la base, tel que le magasin le comprend.
+   *
+   * Le local de démonstration est écarté partout ici. Il ne compte pas comme un
+   * magasin, et surtout : `empty` déclenche le mode Inventaire initial côté
+   * interface. Une démonstration installée avant la saisie du vrai stock ferait
+   * croire à une base déjà remplie et sauterait cet écran.
+   */
   app.get('/api/health', async (c) => {
     const db = c.get('db');
     const counts = {
       users: (await db.get('SELECT COUNT(*) AS n FROM users')).n,
-      sites: (await db.get('SELECT COUNT(*) AS n FROM sites')).n,
-      racks: (await db.get('SELECT COUNT(*) AS n FROM racks')).n,
-      items: (await db.get('SELECT COUNT(*) AS n FROM items')).n,
+      sites: (await db.get('SELECT COUNT(*) AS n FROM sites WHERE hidden = 0')).n,
+      racks: (
+        await db.get(
+          `SELECT COUNT(*) AS n FROM racks
+             JOIN sites ON sites.id = racks.site_id
+            WHERE sites.hidden = 0`,
+        )
+      ).n,
+      items: (
+        await db.get(
+          `SELECT COUNT(*) AS n FROM items
+            WHERE NOT EXISTS (SELECT 1 FROM item_locations WHERE item_locations.item_id = items.id)
+               OR EXISTS (
+                    SELECT 1 FROM item_locations
+                      LEFT JOIN shelves ON shelves.id = item_locations.shelf_id
+                      JOIN racks ON racks.id = COALESCE(shelves.rack_id, item_locations.zone_id)
+                      JOIN sites ON sites.id = racks.site_id
+                     WHERE item_locations.item_id = items.id AND sites.hidden = 0
+                  )`,
+        )
+      ).n,
     };
-    // `empty` déclenche le mode Inventaire initial côté interface.
     return c.json({ ok: true, counts, empty: counts.racks === 0 && counts.items === 0 });
   });
 
