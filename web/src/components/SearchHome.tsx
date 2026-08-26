@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { api } from '../api';
 import { PREFIX_MIN_LENGTH, isSearchable } from '../lib/reference';
-import type { Item, Site } from '../types';
+import type { Customer, Item, Site } from '../types';
 import { Logo } from './Logo';
 import styles from './SearchHome.module.css';
 
@@ -19,6 +19,12 @@ import styles from './SearchHome.module.css';
  * clairement séparées, pour qu'on ne confonde jamais les deux.
  *
  * Entrée valide : l'emplacement s'affiche ET la référence part dans la liste.
+ *
+ * Le menu des stocks, quand le local en a, se choisit **référence par
+ * référence** et revient au stock général après chaque validation. Une même
+ * commande mélange couramment des lignes AOCCI et des lignes du stock général :
+ * un mode qui resterait allumé ferait chercher au mauvais endroit sans que
+ * personne s'en aperçoive.
  */
 
 export interface SearchHandle {
@@ -28,10 +34,12 @@ export interface SearchHandle {
 
 interface SearchHomeProps {
   site: Site;
+  /** Stocks à part du local. Vide : aucun menu ne s'affiche. */
+  customers: Customer[];
   /** Affichage réduit : le champ passe en haut de l'écran de résultat. */
   compact?: boolean;
-  onSubmit: (query: string) => void;
-  onPick: (item: Item) => void;
+  onSubmit: (query: string, customerId: number | null) => void;
+  onPick: (item: Item, customerId: number | null) => void;
 }
 
 interface Suggestions {
@@ -42,19 +50,23 @@ interface Suggestions {
 const EMPTY: Suggestions = { byReference: [], byDesignation: [] };
 
 export const SearchHome = forwardRef<SearchHandle, SearchHomeProps>(function SearchHome(
-  { site, compact = false, onSubmit, onPick },
+  { site, customers, compact = false, onSubmit, onPick },
   ref,
 ) {
   const [query, setQuery] = useState('');
+  // `null` = stock général. Remis à zéro après chaque référence validée.
+  const [customerId, setCustomerId] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestions>(EMPTY);
   const [highlighted, setHighlighted] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
+  const stockId = useId();
 
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
     clear: () => {
       setQuery('');
+      setCustomerId(null);
       setSuggestions(EMPTY);
       setHighlighted(-1);
       inputRef.current?.focus();
@@ -72,7 +84,7 @@ export const SearchHome = forwardRef<SearchHandle, SearchHomeProps>(function Sea
     let cancelled = false;
     const timer = setTimeout(() => {
       void api.items
-        .search(query, site.id)
+        .search(query, site.id, customerId)
         .then((result) => {
           if (cancelled) return;
           setSuggestions({ byReference: result.matches, byDesignation: result.by_designation });
@@ -85,17 +97,21 @@ export const SearchHome = forwardRef<SearchHandle, SearchHomeProps>(function Sea
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query, site.id]);
+  }, [query, site.id, customerId]);
 
   const flat = [...suggestions.byReference, ...suggestions.byDesignation];
   const open = flat.length > 0;
 
   function submit() {
     if (highlighted >= 0 && flat[highlighted]) {
-      onPick(flat[highlighted]);
+      onPick(flat[highlighted], customerId);
+      setCustomerId(null);
       return;
     }
-    if (isSearchable(query)) onSubmit(query);
+    if (isSearchable(query)) {
+      onSubmit(query, customerId);
+      setCustomerId(null);
+    }
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -137,6 +153,32 @@ export const SearchHome = forwardRef<SearchHandle, SearchHomeProps>(function Sea
         }}
         role="search"
       >
+        {customers.length > 0 ? (
+          <div className={`${styles.stockRow} ${customerId ? styles.stockRowOn : ''}`}>
+            <label className={styles.stockLabel} htmlFor={stockId}>
+              Chercher dans
+            </label>
+            <select
+              id={stockId}
+              className={styles.stockSelect}
+              value={customerId ?? ''}
+              onChange={(event) =>
+                setCustomerId(event.target.value ? Number(event.target.value) : null)
+              }
+            >
+              <option value="">Stock général</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                </option>
+              ))}
+            </select>
+            {customerId ? (
+              <span className={styles.stockNote}>revient au stock général après la référence</span>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className={`${styles.field} ${open ? styles.fieldOpen : ''}`}>
           <SearchIcon />
           <input
@@ -178,7 +220,10 @@ export const SearchHome = forwardRef<SearchHandle, SearchHomeProps>(function Sea
                 key={item.id}
                 item={item}
                 highlighted={highlighted === index}
-                onPick={onPick}
+                onPick={() => {
+                  onPick(item, customerId);
+                  setCustomerId(null);
+                }}
                 onHover={() => setHighlighted(index)}
               />
             ))}
@@ -196,7 +241,10 @@ export const SearchHome = forwardRef<SearchHandle, SearchHomeProps>(function Sea
                   key={item.id}
                   item={item}
                   highlighted={highlighted === position}
-                  onPick={onPick}
+                  onPick={() => {
+                    onPick(item, customerId);
+                    setCustomerId(null);
+                  }}
                   onHover={() => setHighlighted(position)}
                 />
               );
@@ -216,7 +264,8 @@ function Suggestion({
 }: {
   item: Item;
   highlighted: boolean;
-  onPick: (item: Item) => void;
+  /** Le stock visé est refermé par l'appelant : la suggestion l'ignore. */
+  onPick: () => void;
   onHover: () => void;
 }) {
   const location = item.locations[0];
@@ -229,7 +278,7 @@ function Suggestion({
         aria-selected={highlighted}
         className={`${styles.suggestion} ${highlighted ? styles.suggestionOn : ''}`}
         onMouseEnter={onHover}
-        onClick={() => onPick(item)}
+        onClick={onPick}
       >
         <span className={styles.suggestionRef}>{item.reference_display}</span>
         <span className={styles.suggestionLabel}>{item.designation || '—'}</span>

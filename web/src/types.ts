@@ -55,6 +55,13 @@ export interface Location {
   shelf_index: number | null;
   /** Gauche / centre / droite, ou `null` si non précisé. */
   side: Side | null;
+  /**
+   * Stock à part auquel ce rangement appartient, ou `null` pour le stock
+   * général du local. Un stock à part occupe les mêmes meubles que le stock
+   * général : seule cette appartenance les distingue.
+   */
+  customer_id: number | null;
+  customer_name: string;
   site_id: number | null;
   site_code: string;
   site_name: string;
@@ -62,6 +69,19 @@ export interface Location {
   short_code: string;
   /** `R03-E2` ou `Z02` — identifiant lisible et unique d'un emplacement. */
   code: string;
+}
+
+/**
+ * Stock à part d'un local : celui d'un client qui achète à l'année, rangé au
+ * même endroit que le stock général et portant les mêmes références.
+ */
+export interface Customer {
+  id: number;
+  site_id: number;
+  name: string;
+  /** Nombre de rangements qui lui appartiennent. */
+  reserved_count: number;
+  created_at: string;
 }
 
 export interface User {

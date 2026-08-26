@@ -1,4 +1,5 @@
 import type {
+  Customer,
   Health,
   Item,
   ItemKind,
@@ -164,11 +165,17 @@ export const api = {
       const search = params.toString();
       return request<Item[]>(`/items${search ? `?${search}` : ''}`);
     },
-    /** La recherche ne franchit pas la frontière entre les deux locaux. */
-    search: (query: string, siteId?: number) =>
-      request<SearchResult>(
-        `/items/search?q=${encodeURIComponent(query)}${siteId ? `&site_id=${siteId}` : ''}`,
-      ),
+    /**
+     * La recherche ne franchit pas la frontière entre les deux locaux.
+     * `customerId` la restreint à un stock à part ; sans lui, elle ne voit
+     * que le stock général du local.
+     */
+    search: (query: string, siteId?: number, customerId?: number | null) => {
+      const params = new URLSearchParams({ q: query });
+      if (siteId) params.set('site_id', String(siteId));
+      if (customerId) params.set('customer_id', String(customerId));
+      return request<SearchResult>(`/items/search?${params}`);
+    },
     get: (id: number) => request<Item>(`/items/${id}`),
     create: (userId: number, payload: ItemPayload) =>
       request<Item>('/items', { method: 'POST', ...json({ user_id: userId, ...payload }) }),
@@ -177,7 +184,13 @@ export const api = {
     move: (
       userId: number,
       id: number,
-      target: { shelf_id?: number; zone_id?: number; side?: Side | null },
+      target: {
+        shelf_id?: number;
+        zone_id?: number;
+        side?: Side | null;
+        /** Stock à part de destination ; absent = stock général. */
+        customer_id?: number | null;
+      },
     ) =>
       request<Item>(`/items/${id}/location`, {
         method: 'PUT',
@@ -188,6 +201,20 @@ export const api = {
         method: 'DELETE',
         ...json({ user_id: userId }),
       }),
+  },
+
+  /**
+   * Stocks à part d'un local : celui d'un client qui achète à l'année, rangé
+   * au même endroit que le stock général et portant les mêmes références.
+   */
+  customers: {
+    list: (siteId: number) => request<Customer[]>(`/customers?site_id=${siteId}`),
+    create: (siteId: number, name: string) =>
+      request<Customer>('/customers', { method: 'POST', ...json({ site_id: siteId, name }) }),
+    rename: (id: number, name: string) =>
+      request<Customer>(`/customers/${id}`, { method: 'PATCH', ...json({ name }) }),
+    remove: (id: number) =>
+      request<{ deleted: boolean }>(`/customers/${id}`, { method: 'DELETE' }),
   },
 
   movements: {

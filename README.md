@@ -88,9 +88,9 @@ elle n'entre pas dans le code, ne conditionne rien et peut rester vide.
 | **Accueil** | le grand champ de recherche au centre, rien d'autre |
 | **Résultat** | le code en énorme, le rayonnage dessiné avec l'étagère surlignée, l'allée et le nom du meuble |
 | **Plan du local** | plein écran (bouton ou **F2**) ; vue de dessus avec un peu d'épaisseur, cadrage automatique sur la cible, parcours numéroté pendant une préparation |
-| **Tiroir de préparation** | à droite, s'ouvre au premier ajout : n° de bon, lignes cochables |
+| **Tiroir de préparation** | à droite, s'ouvre au premier ajout : lignes cochables, rien à saisir |
 | **Inventaire initial** | une question à la fois : le meuble, puis l'étagère, puis les références |
-| **Réglages** (⚙) | Rayonnages et zones · Articles · Équipe · Mouvements · Sauvegardes · Ce local |
+| **Réglages** (⚙) | Rayonnages et zones · Stocks à part · Articles · Équipe · Mouvements · Sauvegardes · Ce local |
 
 Le plan est **fixe** : il n'y a ni molette ni glisser du fond, rien à recadrer.
 Cliquer un meuble l'ouvre dans un panneau à droite, où l'on déplie une étagère
@@ -100,6 +100,32 @@ Le mode **Inventaire initial** démarre tout seul quand la base est vide, et se
 relance depuis Réglages → Sauvegardes. Une fois l'étagère choisie, chaque
 **Entrée** range une référence de plus au même endroit, pour vider un carton
 d'affilée.
+
+## Stocks à part
+
+Certains clients achètent à l'année : le magasin garde pour eux des exemplaires
+des mêmes références que le stock général. Ce ne sont pas d'autres articles —
+c'est **la même référence, rangée au même endroit, mais qui ne lui appartient
+pas**. Deux boîtes d'UK707E/L peuvent voisiner sur `R03-E1`, l'une au stock
+général, l'autre réservée à AOCCI.
+
+Les stocks à part se créent dans **Réglages → Stocks à part**. Chaque nom ajouté
+apparaît ensuite dans le menu **« Chercher dans »**, au-dessus du champ de
+recherche.
+
+Ce menu **revient au stock général après chaque référence**, et c'est
+volontaire : une commande mélange couramment des lignes réservées et des lignes
+ordinaires. Un mode qui resterait allumé ferait chercher au mauvais endroit sans
+que personne s'en aperçoive.
+
+Une référence rangée seulement au stock général ressort « inconnue » quand on la
+cherche chez AOCCI — c'est ce qui empêche de partir avec la pile du voisin. Les
+articles Service et Hors PlanStock échappent à ce filtre : ils n'ont aucun
+emplacement, donc aucun propriétaire.
+
+Un stock à part qui contient encore des références ne se supprime pas. L'export
+gagne une colonne « Réservé à », et l'historique note le nom dans le code
+(`R03-E1 · AOCCI`).
 
 ## Les deux locaux
 
@@ -172,7 +198,7 @@ planstock/
 ```bat
 npm install && npm --prefix web install
 
-npm test                     :: 85 tests d'API + 29 tests d'interface
+npm test                     :: 102 tests d'API + 29 tests d'interface
 npm run build                :: compile l'interface dans web/dist
 npm run dev                  :: PlanStock complet en local, sur une base D1 locale
 npm --prefix web run dev     :: interface seule, rechargement à chaud
@@ -236,11 +262,12 @@ identifié : `user_id` dans le corps de la requête, la query string ou l'en-tê
 | `GET` `POST` `PATCH` | `/api/users` | liste, ajout et désactivation des prénoms |
 | `GET` `PATCH` | `/api/sites` | les deux locaux : nom, couleur, logo, taille du plan |
 | `GET` `POST` `PATCH` `DELETE` | `/api/landmarks?site_id=` | repères du plan : porte d'entrée, établi |
+| `GET` `POST` `PATCH` `DELETE` | `/api/customers?site_id=` | stocks à part d'un local ; la suppression est refusée tant qu'il en reste des références |
 | `GET` `POST` `PATCH` `DELETE` | `/api/racks?site_id=` | rayonnages et zones d'un local ; les étagères sont générées automatiquement |
 | `GET` | `/api/racks/:id/shelves` | étagères d'un rayonnage avec leur contenu |
-| `GET` | `/api/items` · `/api/items/search?q=&site_id=` | recherche exacte, puis par préfixe, puis par désignation |
+| `GET` | `/api/items` · `/api/items/search?q=&site_id=&customer_id=` | recherche exacte, puis par préfixe, puis par désignation ; sans `customer_id`, le stock général seul |
 | `POST` `PATCH` `DELETE` | `/api/items` | création, modification, suppression |
-| `PUT` | `/api/items/:id/location` | déplacement vers une étagère (`shelf_id`, `side` facultatif) ou une zone (`zone_id`) |
+| `PUT` | `/api/items/:id/location` | déplacement vers une étagère (`shelf_id`, `side` facultatif) ou une zone (`zone_id`) ; `customer_id` range dans un stock à part sans toucher aux autres |
 | `GET` | `/api/movements?reference=` | historique filtrable |
 | `GET` `PUT` | `/api/settings` | réglages globaux |
 | `GET` | `/api/export/csv?site_id=` · `/api/export/rows?site_id=` | export des articles (famille, local, côté) |

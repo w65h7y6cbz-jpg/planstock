@@ -199,3 +199,54 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+/* ---- Choix du stock ---- */
+/* Au-dessus du champ, jamais en dessous : la liste de suggestions se déplie en
+   position absolue et recouvrirait ce qui la suit. */
+.stockRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  transition:
+    background var(--transition),
+    box-shadow var(--transition);
+}
+
+/* Un stock à part choisi doit sauter aux yeux : c'est l'état inhabituel, et
+   celui où l'on se tromperait de pile sans le voir. */
+.stockRowOn {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.stockLabel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.stockSelect {
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.stockRowOn .stockSelect {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.stockNote {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
