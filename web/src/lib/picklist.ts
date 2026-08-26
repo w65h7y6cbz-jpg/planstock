@@ -3,7 +3,7 @@ import type { Item } from '../types';
 /**
  * Liste de préparation : logique pure, sans React ni appel réseau.
  *
- * Règles du bon de préparation :
+ * Règles de la liste :
  * - une référence déjà présente n'est jamais dupliquée ;
  * - les articles physiques allument leur emplacement sur le plan, et passent en
  *   « validé » une fois cochés ;
@@ -42,9 +42,8 @@ export function addToPickList(entries: PickEntry[], item: Item): AddResult {
 }
 
 /**
- * Ajoute plusieurs références en une seule fois.
- * Prévu pour l'import d'un bon de préparation (hors MVP) : l'appelant n'a qu'un
- * seul appel à faire, et les doublons sont ignorés silencieusement.
+ * Ajoute plusieurs références en une seule fois : l'appelant n'a qu'un seul
+ * appel à faire, et les doublons sont ignorés silencieusement.
  */
 export function addManyToPickList(
   entries: PickEntry[],
@@ -157,7 +156,7 @@ export interface RouteStop {
 
 /**
  * Parcours de préparation tracé sur le plan : un arrêt par rayonnage ou zone,
- * dans l'ordre où les références ont été saisies (l'ordre du bon papier).
+ * dans l'ordre où les références ont été tapées.
  * Un rayonnage entièrement coché garde son numéro : le tracé ne se renumérote
  * pas sous les yeux du préparateur à chaque case cochée.
  */

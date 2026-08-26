@@ -18,7 +18,6 @@ import {
 import type { Item } from '../types';
 
 const STORAGE_KEY = 'planstock.picklist';
-const NPL_KEY = 'planstock.picklist_npl';
 
 /**
  * La liste survit à la fermeture du navigateur (localStorage) : une préparation
@@ -44,22 +43,11 @@ function readStoredEntries(): PickEntry[] {
   }
 }
 
-function readStoredNpl(): string {
-  try {
-    return localStorage.getItem(NPL_KEY) ?? '';
-  } catch {
-    return '';
-  }
-}
-
 export interface PickListState {
   entries: PickEntry[];
   physical: PickEntry[];
   withoutStock: PickEntry[];
   pending: number;
-  /** Numéro du bon de préparation en cours, ex. « NPL12345 ». */
-  npl: string;
-  setNpl: (npl: string) => void;
   complete: boolean;
   locations: Map<string, 'lit' | 'done'>;
   racks: Map<number, { pending: number; done: number }>;
@@ -80,7 +68,6 @@ export interface PickListState {
 
 export function usePickList(): PickListState {
   const [entries, setEntries] = useState<PickEntry[]>(readStoredEntries);
-  const [npl, setNpl] = useState<string>(readStoredNpl);
   const [flashedItemId, setFlashedItemId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -90,14 +77,6 @@ export function usePickList(): PickListState {
       // Sans stockage local, la liste vaut pour l'affichage en cours.
     }
   }, [entries]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(NPL_KEY, npl);
-    } catch {
-      // Idem : le numéro de bon reste affiché sans être mémorisé.
-    }
-  }, [npl]);
 
   useEffect(() => {
     if (flashedItemId === null) return;
@@ -139,16 +118,11 @@ export function usePickList(): PickListState {
     };
   }, [entries]);
 
-  const clear = useCallback(() => {
-    setEntries([]);
-    setNpl('');
-  }, []);
+  const clear = useCallback(() => setEntries([]), []);
 
   return {
     entries,
     ...derived,
-    npl,
-    setNpl,
     flashedItemId,
     add,
     addMany,

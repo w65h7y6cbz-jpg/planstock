@@ -26,8 +26,10 @@ physiquement l'article ». Aucune quantité, aucun prix, aucune commande.
    l'emplacement s'affiche en énorme, le rayonnage est dessiné à côté avec
    l'étagère surlignée, et la référence rejoint la liste de préparation.
 
-La recherche ne connaît que les références d'articles. Le numéro du bon (NPL…)
-ne sert pas à chercher : il se saisit dans le tiroir, pour nommer la liste.
+**On ne tape jamais qu'une référence dans PlanStock.** Il n'y a pas d'autre
+champ de saisie, pas de numéro de bon, pas de nom de préparation : une
+référence, un emplacement. La liste de préparation se remplit toute seule au
+fil des références tapées.
 
 Tout le flux se fait au clavier : taper, **Entrée**, **↑ ↓** pour choisir dans
 les suggestions, **Suivante** pour la référence suivante, **Échap** pour fermer
@@ -36,8 +38,12 @@ ce qui est ouvert, **F2** (ou **P** hors saisie) pour le plan du local.
 ## Qui peut entrer
 
 PlanStock n'a **aucun compte ni mot de passe** : le prénom sert à tracer qui
-range quoi, pas à ouvrir la porte. En ligne, deux verrous la remplacent, tous
-deux facultatifs et réglables sans redéployer :
+range quoi, pas à ouvrir la porte.
+
+**Aujourd'hui, l'accès est libre : qui a l'adresse entre.** C'est un choix
+assumé — l'adresse n'est donnée à personne en dehors de l'équipe. Deux verrous
+existent si l'on change d'avis un jour ; ils sont facultatifs, vides par défaut,
+et s'activent sans redéployer :
 
 | Réglage | Rôle |
 | --- | --- |
@@ -49,12 +55,9 @@ npx wrangler secret put PLANSTOCK_ALLOWED_IPS
 npx wrangler secret put PLANSTOCK_ACCESS_CODE
 ```
 
-**Tant que les deux sont vides, l'accès est libre** : n'importe qui ayant
-l'adresse peut consulter et modifier le stock. C'est l'état du premier
-déploiement, à ne pas laisser durer.
-
-L'écran de refus affiche l'adresse IP vue par Cloudflare : c'est celle à
-recopier dans `PLANSTOCK_ALLOWED_IPS`.
+Tant que les deux sont vides, aucun filtre ne s'applique et personne n'a rien à
+saisir. Le jour où l'on en veut un, l'écran de refus affiche l'adresse IP vue
+par Cloudflare : c'est celle à recopier dans `PLANSTOCK_ALLOWED_IPS`.
 
 ## Emplacements
 

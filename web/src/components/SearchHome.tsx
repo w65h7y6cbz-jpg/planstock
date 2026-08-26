@@ -8,12 +8,12 @@ import styles from './SearchHome.module.css';
 /**
  * Écran d'accueil : rien que la recherche, au centre.
  *
- * On ne cherche jamais qu'une chose ici : une référence d'article. Le numéro
- * du bon de préparation ne sert pas à chercher — il se saisit dans le tiroir,
- * pour nommer la liste en cours.
+ * On ne cherche qu'une chose ici, et c'est la seule chose qu'on tape dans
+ * PlanStock : une référence d'article. Rien d'autre n'ouvre de recherche — ni
+ * numéro de bon, ni nom de préparation.
  *
  * La saisie passe en majuscules — c'est ainsi que les références figurent sur
- * le bon papier — mais la recherche reste tolérante : uk-707-e-l trouve
+ * le papier — mais la recherche reste tolérante : uk-707-e-l trouve
  * UK707E/L. Les suggestions s'affichent sous le champ à partir de trois
  * caractères ; celles de référence d'abord, celles de désignation ensuite et
  * clairement séparées, pour qu'on ne confonde jamais les deux.
@@ -143,7 +143,7 @@ export const SearchHome = forwardRef<SearchHandle, SearchHomeProps>(function Sea
             ref={inputRef}
             className={styles.input}
             value={query}
-            // Les références sont écrites en majuscules sur le bon de préparation.
+            // Les références sont écrites en majuscules sur le papier.
             onChange={(event) => setQuery(event.target.value.toUpperCase())}
             onKeyDown={onKeyDown}
             placeholder="Tapez une référence…"
