@@ -14,6 +14,7 @@ const TABLES_CHILDREN_FIRST = [
   'movements',
   'item_locations',
   'items',
+  'customers',
   'landmarks',
   'shelves',
   'racks',
