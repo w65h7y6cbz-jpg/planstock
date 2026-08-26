@@ -81,7 +81,7 @@ de face). Ce code est toujours **calculé**, jamais saisi à la main.
 - [x] Étape 1 — Vérification de l'environnement, arborescence, README
 - [x] Étape 2 — Serveur Express + base SQLite + migrations + sauvegardes + API REST
 - [x] Étape 3 — Squelette du front (thème clair/sombre, layout, sélecteur de prénom)
-- [ ] Étape 4 — Éditeur de plan (rayonnages, cases, vue de dessus)
+- [x] Étape 4 — Éditeur de plan (rayonnages, cases, vue de dessus)
 - [ ] Étape 5 — Vue de face, recherche, liste de préparation
 - [ ] Étape 6 — Édition d'articles, drag & drop, historique
 - [ ] Étape 7 — Mode Inventaire initial

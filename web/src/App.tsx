@@ -1,18 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
+import { Modal } from './components/Modal';
 import { TopBar } from './components/TopBar';
+import { TopView } from './components/TopView';
+import { PlanEditor } from './features/settings/PlanEditor';
 import { useCurrentUser } from './hooks/useCurrentUser';
+import { useRacks } from './hooks/useRacks';
 import { useTheme } from './hooks/useTheme';
-import type { Health, Settings } from './types';
+import type { Rack, Settings } from './types';
 import styles from './App.module.css';
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
   const { users, currentUser, loading: usersLoading, error: usersError, selectUser } = useCurrentUser();
+  const racksState = useRacks();
 
-  const [health, setHealth] = useState<Health | null>(null);
   const [settings, setSettings] = useState<Settings>({});
   const [serverError, setServerError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [selectedRack, setSelectedRack] = useState<Rack | null>(null);
 
   // Le curseur doit être dans le champ de recherche dès l'ouverture.
   const searchRef = useRef<HTMLInputElement>(null);
@@ -21,14 +27,11 @@ export function App() {
     let cancelled = false;
     void (async () => {
       try {
-        const [healthResponse, settingsResponse] = await Promise.all([
-          api.health(),
-          api.settings.get(),
-        ]);
-        if (cancelled) return;
-        setHealth(healthResponse);
-        setSettings(settingsResponse);
-        setServerError(null);
+        const response = await api.settings.get();
+        if (!cancelled) {
+          setSettings(response);
+          setServerError(null);
+        }
       } catch (cause) {
         if (!cancelled) {
           setServerError(cause instanceof Error ? cause.message : 'Serveur injoignable.');
@@ -44,7 +47,10 @@ export function App() {
     searchRef.current?.focus();
   }, []);
 
-  const error = serverError ?? usersError;
+  const planWidth = Number(settings.plan_width) || 100;
+  const planHeight = Number(settings.plan_height) || 100;
+  const error = serverError ?? usersError ?? racksState.error;
+  const totalItems = racksState.racks.reduce((total, rack) => total + rack.items_count, 0);
 
   return (
     <div className={styles.app}>
@@ -55,7 +61,7 @@ export function App() {
         onSelectUser={selectUser}
         theme={theme}
         onToggleTheme={toggleTheme}
-        onOpenSettings={() => window.alert('Écran Paramètres : étape 8.')}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       {error ? (
@@ -91,43 +97,62 @@ export function App() {
           </div>
         </section>
 
-        <section className={`${styles.column}`} aria-label="Plan du local">
+        <section className={styles.column} aria-label="Plan du local">
           <div className={`${styles.panel} ${styles.panelGrow}`}>
-            <h2 className={styles.panelTitle}>Plan du local</h2>
-            {health ? (
-              <ul className={styles.stats}>
-                <li className={styles.stat}>
-                  <span className={styles.statValue}>{health.counts.racks}</span>
-                  <span className={styles.statLabel}>rayonnages</span>
-                </li>
-                <li className={styles.stat}>
-                  <span className={styles.statValue}>{health.counts.items}</span>
-                  <span className={styles.statLabel}>articles</span>
-                </li>
-                <li className={styles.stat}>
-                  <span className={styles.statValue}>{health.counts.users}</span>
-                  <span className={styles.statLabel}>techniciens</span>
-                </li>
-              </ul>
-            ) : (
-              <p className={styles.loading}>Connexion au serveur…</p>
-            )}
-            <div className={styles.placeholder}>
-              {health?.empty ? (
-                <>
-                  <span>Aucun rayonnage enregistré.</span>
-                  <span>Éditeur de plan : étape 4 — Inventaire initial : étape 7.</span>
-                </>
-              ) : (
-                <>
-                  <span>Vue de dessus du local.</span>
-                  <span>Plan interactif : étape 4.</span>
-                </>
-              )}
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>
+                Plan du local{settings.room_name ? ` — ${settings.room_name}` : ''}
+              </h2>
+              <span className={styles.panelMeta}>
+                {racksState.racks.length} rayonnage(s) · {totalItems} article(s)
+                {selectedRack ? ` · ${selectedRack.rack_code} sélectionné` : ''}
+              </span>
             </div>
+
+            {racksState.loading ? (
+              <p className={styles.loading}>Chargement du plan…</p>
+            ) : (
+              <TopView
+                racks={racksState.racks}
+                planWidth={planWidth}
+                planHeight={planHeight}
+                selectedRackId={selectedRack?.id ?? null}
+                onSelectRack={setSelectedRack}
+              />
+            )}
+
+            {selectedRack ? (
+              <p className={styles.panelMeta}>
+                {selectedRack.rack_code} · {selectedRack.label || 'sans libellé'} —{' '}
+                {selectedRack.shelves_count} étagères × {selectedRack.slots_per_shelf} cases. Vue
+                de face : étape 5.
+              </p>
+            ) : null}
           </div>
         </section>
       </main>
+
+      {settingsOpen ? (
+        <Modal
+          title="Paramètres — Plan du local"
+          width={1040}
+          onClose={() => {
+            setSettingsOpen(false);
+            racksState.clearError();
+          }}
+        >
+          <PlanEditor
+            racks={racksState.racks}
+            error={racksState.error}
+            canEdit={currentUser !== null}
+            planWidth={planWidth}
+            planHeight={planHeight}
+            onCreate={racksState.createRack}
+            onUpdate={racksState.updateRack}
+            onDelete={racksState.removeRack}
+          />
+        </Modal>
+      ) : null}
     </div>
   );
 }
