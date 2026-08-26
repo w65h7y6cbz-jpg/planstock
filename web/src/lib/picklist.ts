@@ -7,7 +7,7 @@ import type { Item } from '../types';
  * - une référence déjà présente n'est jamais dupliquée ;
  * - les articles physiques allument leur emplacement sur le plan, et passent en
  *   « validé » une fois cochés ;
- * - les articles Service ou Autre site n'ont pas d'existence physique : ils sont
+ * - les articles Service ou Hors PlanStock n'ont pas d'existence physique : ils sont
  *   rangés à part, cochés d'office, et n'allument jamais rien.
  */
 
@@ -16,7 +16,7 @@ export interface PickEntry {
   checked: boolean;
 }
 
-/** Un article Service ou Autre site est coché d'office : rien à aller chercher. */
+/** Un article Service ou Hors PlanStock est coché d'office : rien à aller chercher. */
 export function isPhysical(item: Item): boolean {
   return item.kind === 'physical';
 }
@@ -145,4 +145,44 @@ export function rackHighlights(entries: PickEntry[]): Map<number, RackHighlight>
     highlights.set(location.rack_id, current);
   }
   return highlights;
+}
+
+export interface RouteStop {
+  rackId: number;
+  /** Numéro d'étape affiché sur le plan, à partir de 1. */
+  position: number;
+  pending: number;
+  done: number;
+}
+
+/**
+ * Parcours de préparation tracé sur le plan : un arrêt par rayonnage ou zone,
+ * dans l'ordre où les références ont été saisies (l'ordre du bon papier).
+ * Un rayonnage entièrement coché garde son numéro : le tracé ne se renumérote
+ * pas sous les yeux du préparateur à chaque case cochée.
+ */
+export function pickRoute(entries: PickEntry[]): RouteStop[] {
+  const stops: RouteStop[] = [];
+  const byRack = new Map<number, RouteStop>();
+
+  for (const entry of entries) {
+    if (!isPhysical(entry.item)) continue;
+    const location = entry.item.locations[0];
+    if (!location) continue;
+
+    let stop = byRack.get(location.rack_id);
+    if (!stop) {
+      stop = { rackId: location.rack_id, position: stops.length + 1, pending: 0, done: 0 };
+      byRack.set(location.rack_id, stop);
+      stops.push(stop);
+    }
+    if (entry.checked) stop.done += 1;
+    else stop.pending += 1;
+  }
+  return stops;
+}
+
+/** Vrai quand la préparation est finie : au moins une ligne, toutes cochées. */
+export function isPickListComplete(entries: PickEntry[]): boolean {
+  return entries.length > 0 && entries.every((entry) => entry.checked);
 }

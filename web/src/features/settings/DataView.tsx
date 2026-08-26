@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api } from '../../api';
-import type { Backup, User } from '../../types';
+import type { Backup, Site, User } from '../../types';
 import styles from './settings.module.css';
 
 interface DataViewProps {
+  /** L'export se limite au local ouvert. */
+  site: Site;
   currentUser: User | null;
   /** Rechargement complet après restauration ou installation de la démo. */
   onDataReplaced: () => Promise<void>;
@@ -29,7 +31,7 @@ function formatDate(iso: string): string {
   );
 }
 
-export function DataView({ currentUser, onDataReplaced, onRelaunchInventory }: DataViewProps) {
+export function DataView({ site, currentUser, onDataReplaced, onRelaunchInventory }: DataViewProps) {
   const [backups, setBackups] = useState<Backup[] | null>(null);
   const [demoAvailable, setDemoAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,12 +137,12 @@ export function DataView({ currentUser, onDataReplaced, onRelaunchInventory }: D
         <div className={styles.buttons}>
           <a
             className={`${styles.button} ${styles.primary}`}
-            href={api.exportUrl('xlsx')}
+            href={api.exportUrl('xlsx', site.id)}
             download
           >
             Export Excel (.xlsx)
           </a>
-          <a className={styles.button} href={api.exportUrl('csv')} download>
+          <a className={styles.button} href={api.exportUrl('csv', site.id)} download>
             Export CSV
           </a>
         </div>

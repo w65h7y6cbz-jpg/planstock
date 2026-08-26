@@ -1,0 +1,262 @@
+.screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  overflow: auto;
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 1180px;
+  padding: var(--space-5) var(--space-6);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+/* Flash bref d'arrivée : 200 ms, puis l'écran redevient calme. */
+.flash {
+  animation: arrive 260ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+@keyframes arrive {
+  from {
+    background: var(--accent-soft-2);
+    transform: translateY(6px);
+  }
+}
+
+.left {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Le dessin ne prend jamais plus de deux cinquièmes de la carte : c'est le
+   code qui doit rester le plus gros élément de l'écran. */
+.right {
+  display: grid;
+  place-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
+  align-self: stretch;
+  padding: var(--space-4);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+}
+
+.reference {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* Le code d'emplacement : le seul élément vraiment énorme de l'application.
+   Sa taille suit la largeur disponible — le tiroir de préparation resserre la
+   colonne, le code doit rétrécir plutôt que déborder ou passer à la ligne. */
+.code {
+  display: flex;
+  align-items: baseline;
+  gap: 0.14em;
+  min-width: 0;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: clamp(52px, 19cqw, 132px);
+  font-weight: 800;
+  line-height: 0.94;
+  color: var(--accent);
+  letter-spacing: -0.03em;
+}
+
+.codeSep {
+  align-self: center;
+  width: 0.13em;
+  height: 0.13em;
+  margin: 0 0.1em;
+  background: var(--text-faint);
+  border-radius: 50%;
+}
+
+.codeShelf {
+  color: var(--accent);
+}
+
+.zoneNote,
+.side {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.side {
+  color: var(--accent);
+}
+
+.details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-2) 0 0;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detail dt {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.detail dd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.aisleDot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-pill);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.primary,
+.secondary {
+  min-height: 58px;
+  padding: 0 var(--space-5);
+  font-size: var(--text-md);
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  transition:
+    background var(--transition),
+    color var(--transition),
+    transform var(--transition);
+}
+
+.primary {
+  color: var(--accent-contrast);
+  background: var(--accent);
+}
+
+.primary:hover {
+  background: var(--accent-strong);
+}
+
+.secondary {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.secondary:hover {
+  background: var(--surface-3);
+}
+
+.primary:active,
+.secondary:active {
+  transform: translateY(1px);
+}
+
+/* ---- Référence inconnue, service, hors PlanStock ---- */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 820px;
+  padding: var(--space-6);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.cardMuted {
+  background: var(--surface);
+}
+
+/* Un service n'est pas une erreur : couleur d'attention, pas de danger. */
+.cardWarning {
+  background: var(--warning-soft);
+}
+
+.bigMessage {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1.05;
+  color: var(--warning);
+  letter-spacing: -0.02em;
+}
+
+.designation {
+  font-size: var(--text-lg);
+  color: var(--text-muted);
+}
+
+.kindTag {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--warning);
+  background: var(--surface);
+  border-radius: var(--radius-pill);
+}
+
+.unknownRef {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: var(--text);
+}
+
+.unknownText {
+  font-size: var(--text-lg);
+  color: var(--text-muted);
+}
+
+.searching {
+  font-size: var(--text-lg);
+  color: var(--text-muted);
+}
+
+/* Écran étroit : le dessin passe sous le code plutôt que de le comprimer. */
+@media (max-width: 900px) {
+  .result {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-4);
+  }
+
+  .right {
+    padding: var(--space-3);
+  }
+}

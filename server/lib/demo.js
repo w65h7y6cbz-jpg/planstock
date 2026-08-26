@@ -14,19 +14,19 @@ import { recordMovement, syncRackShelves } from './store.js';
 const OPTIMIUM = {
   site: 'optimium',
   racks: [
-    { code: 1, label: 'Rayon machines', aisle: 'Allée A', shelves: 5, x: 6, y: 10, width: 38, height: 9 },
-    { code: 2, label: 'Rayon imprimantes', aisle: 'Allée A', shelves: 5, x: 6, y: 19, width: 38, height: 9 },
-    { code: 3, label: 'Rayon consommables', aisle: 'Allée B', shelves: 6, x: 6, y: 36, width: 38, height: 9 },
-    { code: 4, label: 'Rayon écrans', aisle: 'Allée B', shelves: 4, x: 6, y: 45, width: 38, height: 9 },
+    { code: 1, label: 'Rayon machines', aisle: 'Allée A', shelves: 5, x: 6, y: 8, width: 38, height: 9 },
+    { code: 2, label: 'Rayon imprimantes', aisle: 'Allée A', shelves: 5, x: 6, y: 22, width: 38, height: 9 },
+    { code: 3, label: 'Rayon consommables', aisle: 'Allée B', shelves: 6, x: 6, y: 42, width: 38, height: 9 },
+    { code: 4, label: 'Rayon écrans', aisle: 'Allée B', shelves: 4, x: 6, y: 56, width: 38, height: 9 },
   ],
   zones: [
-    { code: 1, label: 'Palette réception', x: 56, y: 10, width: 22, height: 12 },
-    { code: 2, label: 'Pile ProDesk', x: 56, y: 26, width: 22, height: 12 },
-    { code: 3, label: 'Cage grillagée', x: 56, y: 42, width: 22, height: 14 },
+    { code: 1, label: 'Palette réception', x: 58, y: 8, width: 24, height: 12 },
+    { code: 2, label: 'Pile ProDesk', x: 58, y: 26, width: 24, height: 12 },
+    { code: 3, label: 'Cage grillagée', x: 58, y: 44, width: 24, height: 14 },
   ],
   landmarks: [
     { kind: 'door', label: 'Entrée', x: 44, y: 0, width: 10, height: 2.5 },
-    { kind: 'bench', label: 'Établi SAV', x: 56, y: 62, width: 24, height: 8 },
+    { kind: 'bench', label: 'Établi SAV', x: 58, y: 66, width: 26, height: 8 },
   ],
   // [référence, désignation, famille, libellé famille, emplacement, côté]
   items: [
@@ -60,7 +60,7 @@ const SHARP_CENTER = {
   site: 'sharp-center',
   racks: [
     { code: 1, label: 'Rayon showroom', aisle: 'Allée 1', shelves: 4, x: 8, y: 12, width: 34, height: 10 },
-    { code: 2, label: 'Rayon pièces', aisle: 'Allée 1', shelves: 6, x: 8, y: 24, width: 34, height: 10 },
+    { code: 2, label: 'Rayon pièces', aisle: 'Allée 1', shelves: 6, x: 8, y: 28, width: 34, height: 10 },
   ],
   zones: [{ code: 1, label: 'Quai de livraison', x: 54, y: 12, width: 26, height: 16 }],
   landmarks: [{ kind: 'door', label: 'Entrée', x: 30, y: 0, width: 12, height: 2.5 }],

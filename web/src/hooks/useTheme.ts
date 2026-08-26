@@ -13,16 +13,14 @@ function readStoredTheme(): Theme | null {
   }
 }
 
-/** Thème par défaut : celui du système, tant que l'utilisateur n'a pas choisi. */
-function systemTheme(): Theme {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light';
-}
-
-/** Thème clair/sombre, mémorisé sur ce poste (localStorage). */
+/**
+ * Thème clair/sombre, mémorisé sur ce poste (localStorage).
+ * Le clair est le défaut : le local est éclairé, l'écran se lit à un pas ou
+ * deux, et c'est le thème sur lequel les contrastes ont été réglés. Le sombre
+ * reste accessible d'un bouton.
+ */
 export function useTheme(): { theme: Theme; toggleTheme: () => void } {
-  const [theme, setTheme] = useState<Theme>(() => readStoredTheme() ?? systemTheme());
+  const [theme, setTheme] = useState<Theme>(() => readStoredTheme() ?? 'light');
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

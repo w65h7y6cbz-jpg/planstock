@@ -1,0 +1,198 @@
+/* Accueil : le champ occupe le centre de l'écran, rien autour. */
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-6) var(--space-4) 12vh;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 148px;
+  height: 148px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-lg);
+}
+
+/* Sur l'écran de résultat, le même champ remonte en haut, plus discret. */
+.compact {
+  display: flex;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: var(--space-4) var(--space-4) 0;
+}
+
+.form {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+}
+
+.compact .form {
+  max-width: 620px;
+}
+
+/* La barre arrondie épaisse : l'élément le plus visible de l'écran. */
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.field:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Suggestions ouvertes : la barre et la liste forment un seul bloc. */
+.fieldOpen {
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+}
+
+.searchIcon {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  color: var(--text-faint);
+}
+
+.compact .searchIcon {
+  width: 22px;
+  height: 22px;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 82px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: none;
+  border: none;
+  outline: none;
+}
+
+.compact .input {
+  height: 58px;
+  font-size: var(--text-lg);
+}
+
+/* C'est la barre entière qui montre le focus : un second contour autour du
+   champ dessinerait un cadre dans le cadre. */
+.input:focus-visible {
+  outline: none;
+}
+
+.input::placeholder {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-faint);
+}
+
+.clear {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  font-size: var(--text-xl);
+  line-height: 1;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  transition: background var(--transition);
+}
+
+.clear:hover {
+  background: var(--surface-3);
+}
+
+.suggestions {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: drop 140ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.suggestion {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr auto;
+  gap: var(--space-3);
+  align-items: baseline;
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+
+.suggestionOn {
+  background: var(--accent-soft);
+}
+
+.suggestionRef {
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.suggestionLabel {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestionCode {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* Les correspondances de désignation ne se confondent pas avec les références. */
+.separator {
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

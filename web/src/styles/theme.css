@@ -1,127 +1,175 @@
-/* PlanStock — thème clair/sombre.
-   Typographie système, une seule couleur accent, animations courtes.
-   Aucune police externe : l'application doit fonctionner réseau débranché. */
+/* PlanStock — thème clair contrasté.
+   Lisible à 1,5 m d'un écran 22-24", typographie système uniquement (aucune
+   police externe : l'application doit fonctionner réseau débranché).
+   Les blocs se distinguent par des fonds de couleur, pas par des bordures.
+   La couleur d'accent est celle du local sélectionné : elle est injectée à
+   l'exécution dans `--accent`, les variantes s'en déduisent. */
 
 :root {
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', Consolas, monospace;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
+  /* Échelle typographique. Tout est monté d'un cran par rapport à un logiciel
+     de bureau habituel : l'écran se lit debout, à un pas ou deux du poste. */
+  --text-xs: 14px;
+  --text-sm: 16px;
+  --text-md: 18px;
+  --text-lg: 22px;
+  --text-xl: 28px;
+  --text-2xl: 38px;
+  --text-3xl: 54px;
+  /* Le code d'emplacement trouvé : le seul élément vraiment énorme. */
+  --text-code: clamp(52px, 8.5vw, 132px);
+
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 28px;
+  --radius-pill: 999px;
 
   --space-1: 4px;
   --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
+  --space-3: 14px;
+  --space-4: 20px;
+  --space-5: 28px;
+  --space-6: 40px;
+  --space-7: 56px;
 
-  --transition: 160ms ease;
+  --transition: 160ms cubic-bezier(0.2, 0, 0.2, 1);
+  --transition-slow: 200ms cubic-bezier(0.2, 0, 0.2, 1);
 
-  /* Cible cliquable minimale (contrainte UI : ≥ 36 px). */
-  --tap-target: 36px;
+  /* Cible cliquable minimale : ≥ 36 px imposé, on prend large. */
+  --tap-target: 48px;
+
+  /* Couleur du local, écrasée à l'exécution par le local sélectionné. */
+  --accent: #0057a8;
+  --accent-contrast: #ffffff;
 }
 
-/* Thème clair (défaut) */
+/* ---- Thème clair (défaut) ---- */
 :root,
 [data-theme='light'] {
-  --bg: #f5f5f7;
-  --bg-elevated: #ffffff;
-  --bg-sunken: #ebebef;
-  --border: #d8d8de;
-  --border-strong: #b9b9c2;
-  --text: #1d1d1f;
-  --text-muted: #6e6e73;
-  --text-faint: #8e8e93;
+  --bg: #eef0f4;
+  /* Trois niveaux de fond : c'est ce qui sépare les blocs, à la place des traits. */
+  --surface: #ffffff;
+  --surface-2: #f3f5f9;
+  --surface-3: #e5e9f0;
+  --surface-invert: #1b1e26;
 
-  --accent: #0062cc;
-  --accent-contrast: #ffffff;
-  --accent-soft: #dbeafe;
-  --accent-border: #7db3ee;
+  --text: #14171e;
+  --text-muted: #545a67;
+  --text-faint: #7d8493;
+  --text-invert: #f6f7fa;
 
-  --success: #1a7f37;
-  --success-soft: #d7f0dd;
-  --danger: #c8102e;
-  --danger-soft: #fbdde1;
+  /* Les bordures restent disponibles pour les cas où un trait est nécessaire
+     (contour d'un champ actif, séparateur de tableau), jamais pour découper
+     l'écran en cadres. */
+  --line: #d5dae3;
+  --line-strong: #b3bac7;
 
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 8%);
-  --shadow-md: 0 4px 16px rgb(0 0 0 / 10%);
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, #ffffff);
+  --accent-soft-2: color-mix(in srgb, var(--accent) 22%, #ffffff);
+  --accent-border: color-mix(in srgb, var(--accent) 45%, #ffffff);
+  --accent-strong: color-mix(in srgb, var(--accent) 82%, #000000);
 
-  /* Plan du local : sol, allées, meubles. */
-  --plan-floor: #ffffff;
-  --plan-grid: #e6e6ec;
-  --plan-lane: #f0f2f7;
-  --plan-lane-border: #d5d9e3;
-  --plan-shadow: rgb(15 23 42 / 10%);
-  --plan-rack: #e9edf5;
-  --plan-rack-border: #b6bfd0;
-  --plan-rack-edge: #8d99b0;
-  --plan-zone: #f7f4ee;
-  --plan-zone-border: #c8bda6;
-  --plan-zone-hatch: #e0d6c2;
-  --plan-gauge-track: #d8dde7;
-  --plan-gauge-fill: #8d99b0;
+  --success: #12703a;
+  --success-soft: #d3f0dd;
+  --success-strong: #0b5028;
+  --warning: #96560a;
+  --warning-soft: #fdecd2;
+  --danger: #b3122b;
+  --danger-soft: #fadde2;
 
-  /* Teintes de famille des pastilles : lisibles côte à côte, jamais criardes. */
-  --tone-0: #2f6fb8;
-  --tone-1: #1f8a70;
-  --tone-2: #b5651d;
-  --tone-3: #7a5cc0;
-  --tone-4: #b03a5b;
-  --tone-5: #4a7a1f;
-  --tone-6: #0f7f95;
-  --tone-7: #8a6d12;
+  --shadow-sm: 0 1px 3px rgb(15 23 42 / 10%);
+  --shadow-md: 0 8px 24px rgb(15 23 42 / 12%);
+  --shadow-lg: 0 20px 56px rgb(15 23 42 / 18%);
+
+  /* Plan du local, vu de dessus avec un peu d'épaisseur. */
+  --plan-floor: #f7f8fb;
+  --plan-floor-line: #e3e7ee;
+  --plan-wall: #c3cad6;
+  --plan-rack-top: #dfe4ec;
+  --plan-rack-side: #b9c1cf;
+  --plan-rack-edge: #98a2b3;
+  --plan-zone-top: #f2ece0;
+  --plan-zone-side: #d8cdb8;
+  --plan-door: #8a93a3;
+  --plan-bench: #cdd4de;
+
+  /* Rayonnage vu de face : montants et tablettes. */
+  --steel: #aab2c0;
+  --steel-dark: #8b94a4;
+  --steel-light: #ccd3de;
+  --shelf-board: #e8ebf1;
+
+  /* Couleurs d'allée : franches, distinctes, jamais criardes. */
+  --aisle-0: #2f6fb8;
+  --aisle-1: #1c7f63;
+  --aisle-2: #b4611b;
+  --aisle-3: #6f52bd;
+  --aisle-4: #a83354;
+  --aisle-5: #48761c;
+  --aisle-6: #0f7b91;
+  --aisle-7: #8a6a10;
 }
 
+/* ---- Thème sombre (en option, bouton dans la barre du haut) ---- */
 [data-theme='dark'] {
-  --bg: #131316;
-  --bg-elevated: #1e1e22;
-  --bg-sunken: #0c0c0e;
-  --border: #35353c;
-  --border-strong: #4d4d57;
-  --text: #f2f2f5;
-  --text-muted: #a1a1ab;
-  --text-faint: #7c7c87;
+  --bg: #0f1116;
+  --surface: #191c24;
+  --surface-2: #21252f;
+  --surface-3: #2b3040;
+  --surface-invert: #eef0f4;
 
-  --accent: #4c9dff;
-  --accent-contrast: #06121f;
-  --accent-soft: #17324f;
-  --accent-border: #2f6ba8;
+  --text: #f3f4f8;
+  --text-muted: #a8aec0;
+  --text-faint: #7c8398;
+  --text-invert: #14171e;
 
-  --success: #46c26a;
-  --success-soft: #1a3823;
-  --danger: #ff6b7f;
-  --danger-soft: #43181f;
+  --line: #303647;
+  --line-strong: #454d63;
 
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
-  --shadow-md: 0 4px 16px rgb(0 0 0 / 45%);
+  --accent-soft: color-mix(in srgb, var(--accent) 26%, #12151c);
+  --accent-soft-2: color-mix(in srgb, var(--accent) 38%, #12151c);
+  --accent-border: color-mix(in srgb, var(--accent) 60%, #12151c);
+  --accent-strong: color-mix(in srgb, var(--accent) 70%, #ffffff);
 
-  /* Plan du local : sol, allées, meubles. */
-  --plan-floor: #191920;
-  --plan-grid: #26262f;
-  --plan-lane: #1f2029;
-  --plan-lane-border: #33343f;
-  --plan-shadow: rgb(0 0 0 / 45%);
-  --plan-rack: #2c2f3a;
-  --plan-rack-border: #474c5c;
-  --plan-rack-edge: #6f7789;
-  --plan-zone: #2a2822;
-  --plan-zone-border: #4d4737;
-  --plan-zone-hatch: #3b372c;
-  --plan-gauge-track: #3a3e4a;
-  --plan-gauge-fill: #7c8399;
+  --success: #45c777;
+  --success-soft: #16351f;
+  --success-strong: #7ee0a3;
+  --warning: #e0a44a;
+  --warning-soft: #3a2a12;
+  --danger: #ff7288;
+  --danger-soft: #3d151d;
 
-  /* Teintes de famille des pastilles : lisibles côte à côte, jamais criardes. */
-  --tone-0: #6ba6f0;
-  --tone-1: #4fc4a4;
-  --tone-2: #e0954f;
-  --tone-3: #a992ee;
-  --tone-4: #ef7f9c;
-  --tone-5: #8fc45a;
-  --tone-6: #4fb9cf;
-  --tone-7: #d6b445;
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 50%);
+  --shadow-md: 0 8px 24px rgb(0 0 0 / 55%);
+  --shadow-lg: 0 20px 56px rgb(0 0 0 / 60%);
+
+  --plan-floor: #171a22;
+  --plan-floor-line: #232833;
+  --plan-wall: #3d4557;
+  --plan-rack-top: #2f3543;
+  --plan-rack-side: #232936;
+  --plan-rack-edge: #4d566b;
+  --plan-zone-top: #2c2a22;
+  --plan-zone-side: #221f19;
+  --plan-door: #6a7385;
+  --plan-bench: #2a303d;
+
+  --steel: #5d667a;
+  --steel-dark: #454d5f;
+  --steel-light: #79839a;
+  --shelf-board: #2c3140;
+
+  --aisle-0: #6ba6f0;
+  --aisle-1: #46c2a0;
+  --aisle-2: #e0954f;
+  --aisle-3: #a48ff0;
+  --aisle-4: #f07f9c;
+  --aisle-5: #8fc45a;
+  --aisle-6: #4fb9cf;
+  --aisle-7: #d6b445;
 }
 
 *,
@@ -139,8 +187,8 @@ body,
 body {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: var(--text-md);
+  line-height: 1.4;
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -148,18 +196,28 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
 
 button {
   cursor: pointer;
+  border: none;
+  background: none;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
   border-radius: var(--radius-sm);
 }
 

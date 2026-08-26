@@ -1,23 +1,32 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, type RackPayload } from '../../api';
-import { PlanPanel } from '../../components/PlanPanel';
-import type { LocationSelection } from '../../components/RackView';
-import type { Item, Rack, Shelf, User } from '../../types';
+import { Logo } from '../../components/Logo';
+import { RackElevation, ZoneDrawing } from '../../components/RackElevation';
+import { SIDES, SIDE_SHORT, aisleColor } from '../../lib/labels';
+import type { Rack, Shelf, Side, Site, User } from '../../types';
 import { RackWizard } from './RackWizard';
 import styles from './InventoryMode.module.css';
 
-/** Destination courante : une étagère de rayonnage, ou une zone. */
-type Target = { kind: 'shelf'; shelf: Shelf } | { kind: 'zone'; zone: Rack } | null;
+/**
+ * Inventaire initial, une question à la fois.
+ *
+ * 1. Devant quel meuble es-tu ?
+ * 2. Quelle étagère ?
+ * 3. Tape les références : chaque Entrée range l'article et laisse le curseur
+ *    prêt pour la suivante, au même endroit — on vide un carton sans lever les
+ *    yeux. Deux boutons suffisent pour changer d'étagère ou de meuble.
+ */
+
+type Step = 'rack' | 'shelf' | 'items';
 
 interface InventoryModeProps {
+  site: Site;
   currentUser: User | null;
   /** Le mode couvre tout l'écran : le choix du prénom doit rester accessible ici. */
   users: User[];
   onSelectUser: (id: number | null) => void;
   racks: Rack[];
   racksLoading: boolean;
-  planWidth: number;
-  planHeight: number;
   onCreateRacks: (racks: RackPayload[]) => Promise<void>;
   /** Prévient l'écran principal qu'un article a été enregistré. */
   onItemSaved: () => void;
@@ -27,335 +36,340 @@ interface InventoryModeProps {
 interface SavedEntry {
   reference: string;
   designation: string;
-  code: string | null;
+  code: string;
 }
 
 const messageOf = (cause: unknown, fallback: string) =>
   cause instanceof ApiError || cause instanceof Error ? cause.message : fallback;
 
-const targetCode = (target: Target) =>
-  target === null ? null : target.kind === 'shelf' ? target.shelf.code : target.zone.rack_code;
-
-/**
- * Mode Inventaire initial : réf → désignation → clic sur une étagère (ou une
- * zone) → suivant. Le dernier emplacement reste sélectionné pour vider un
- * carton entier d'affilée avec la seule touche Entrée.
- */
 export function InventoryMode({
+  site,
   currentUser,
   users,
   onSelectUser,
   racks,
   racksLoading,
-  planWidth,
-  planHeight,
   onCreateRacks,
   onItemSaved,
   onClose,
 }: InventoryModeProps) {
+  const [step, setStep] = useState<Step>('rack');
+  const [rack, setRack] = useState<Rack | null>(null);
+  const [shelves, setShelves] = useState<Shelf[]>([]);
+  const [shelfIndex, setShelfIndex] = useState<number | null>(null);
+  const [side, setSide] = useState<Side | ''>('');
   const [reference, setReference] = useState('');
   const [designation, setDesignation] = useState('');
-  const [target, setTarget] = useState<Target>(null);
-  const [awaiting, setAwaiting] = useState(false);
   const [saved, setSaved] = useState<SavedEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = useState(0);
+  const [busy, setBusy] = useState(false);
 
   const referenceRef = useRef<HTMLInputElement>(null);
-  const emptyStates = useMemo(() => new Map(), []);
-  const emptyHighlight = useMemo(() => new Map(), []);
 
-  const userPicker = (
-    <label className={styles.userPicker}>
-      Technicien
-      <select
-        value={currentUser?.id ?? ''}
-        aria-label="Technicien qui saisit l’inventaire"
-        onChange={(event) =>
-          onSelectUser(event.target.value === '' ? null : Number(event.target.value))
-        }
-      >
-        <option value="">— Choisir un prénom —</option>
-        {users.map((user) => (
-          <option key={user.id} value={user.id}>
-            {user.first_name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-
-  const backToReference = useCallback(() => {
-    setReference('');
-    setDesignation('');
-    setError(null);
-    referenceRef.current?.focus();
-  }, []);
-
-  /** Enregistrement effectif. L'emplacement est passé explicitement : au moment
-   *  du clic sur le plan, l'état `target` n'est pas encore à jour. */
-  const persist = useCallback(
-    async (kind: 'physical' | 'service', where: Target) => {
-      if (!currentUser) {
-        setError('Sélectionnez votre prénom avant de saisir l’inventaire.');
-        return;
-      }
-      try {
-        const item: Item = await api.items.create(currentUser.id, {
-          reference: reference.trim().toUpperCase(),
-          designation: designation.trim(),
-          kind,
-          shelf_id: kind === 'physical' && where?.kind === 'shelf' ? where.shelf.id : null,
-          zone_id: kind === 'physical' && where?.kind === 'zone' ? where.zone.id : null,
-        });
-
-        setSaved((current) => [
-          {
-            reference: item.reference_display,
-            designation: item.designation,
-            code: item.locations[0]?.code ?? null,
-          },
-          ...current,
-        ]);
-        setAwaiting(false);
-        setRefreshToken((token) => token + 1);
-        onItemSaved();
-        backToReference();
-      } catch (cause) {
-        setError(messageOf(cause, 'Enregistrement impossible.'));
-        referenceRef.current?.focus();
-      }
-    },
-    [currentUser, reference, designation, onItemSaved, backToReference],
-  );
-
-  const save = useCallback(
-    async (kind: 'physical' | 'service') => {
-      if (!reference.trim()) {
-        setError('La référence est obligatoire.');
-        referenceRef.current?.focus();
-        return;
-      }
-      if (kind === 'physical' && !target) {
-        // Aucun emplacement encore choisi : on attend un clic sur le plan.
-        setAwaiting(true);
-        setError(null);
-        return;
-      }
-      await persist(kind, target);
-    },
-    [reference, target, persist],
-  );
-
-  /** Un clic sur une étagère ou une zone la sélectionne, et enregistre si on l'attendait. */
-  const choose = useCallback(
-    (next: Target) => {
-      setTarget(next);
-      setError(null);
-
-      if (awaiting && reference.trim()) {
-        void persist('physical', next);
-        return;
-      }
-      setAwaiting(false);
-      // Le clic a déplacé le focus sur le plan : on le rend au champ Référence
-      // pour que la frappe suivante ne se perde pas.
-      referenceRef.current?.focus();
-    },
-    [awaiting, reference, persist],
-  );
-
-  const selection: LocationSelection = useMemo(
-    () => ({
-      label: awaiting
-        ? `Cliquez l’étagère ou la zone où ranger ${reference.trim().toUpperCase() || 'cet article'}.`
-        : 'Cliquez une étagère ou une zone pour changer la destination.',
-      onSelectShelf: (shelf) => choose({ kind: 'shelf', shelf }),
-      onSelectZone: (zone) => choose({ kind: 'zone', zone }),
-    }),
-    [awaiting, reference, choose],
-  );
-
-  async function createRacks(payloads: RackPayload[]) {
-    setError(null);
-    try {
-      await onCreateRacks(payloads);
-    } catch (cause) {
-      setError(messageOf(cause, 'Création du plan impossible.'));
+  // Les étagères du meuble choisi, pour connaître leur identifiant réel.
+  useEffect(() => {
+    if (!rack || rack.is_zone) {
+      setShelves([]);
+      return;
     }
-  }
+    let cancelled = false;
+    void api.racks
+      .shelves(rack.id)
+      .then((list) => !cancelled && setShelves(list))
+      .catch(() => !cancelled && setShelves([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [rack]);
 
+  useEffect(() => {
+    if (step === 'items') referenceRef.current?.focus();
+  }, [step]);
+
+  const currentShelf = shelves.find((shelf) => shelf.shelf_index === shelfIndex) ?? null;
+  const targetCode = rack?.is_zone ? rack.rack_code : (currentShelf?.code ?? '');
+
+  const save = useCallback(async () => {
+    if (!currentUser) {
+      setError('Choisis ton prénom en haut à droite : l’inventaire trace qui range quoi.');
+      return;
+    }
+    if (!reference.trim()) {
+      setError('La référence est obligatoire.');
+      return;
+    }
+    if (!rack || (!rack.is_zone && !currentShelf)) {
+      setError('Choisis d’abord une étagère.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const item = await api.items.create(currentUser.id, {
+        reference: reference.trim().toUpperCase(),
+        designation: designation.trim(),
+        kind: 'physical',
+        shelf_id: rack.is_zone ? null : currentShelf!.id,
+        zone_id: rack.is_zone ? rack.id : null,
+        side: rack.is_zone || !side ? null : side,
+      });
+
+      setSaved((current) => [
+        {
+          reference: item.reference_display,
+          designation: item.designation,
+          code: item.locations[0]?.code ?? targetCode,
+        },
+        ...current,
+      ]);
+      setReference('');
+      setDesignation('');
+      setError(null);
+      onItemSaved();
+    } catch (cause) {
+      setError(messageOf(cause, 'Enregistrement impossible.'));
+    } finally {
+      setBusy(false);
+      referenceRef.current?.focus();
+    }
+  }, [currentUser, reference, designation, rack, currentShelf, side, targetCode, onItemSaved]);
+
+  const header = (
+    <header className={styles.header}>
+      <span className={styles.brand}>
+        <Logo site={site} size={30} />
+        <span className={styles.brandName}>{site.name}</span>
+      </span>
+      <span className={styles.stepTag}>Inventaire initial</span>
+      <span className={styles.headerSpacer} />
+      <span className={styles.counter}>
+        {saved.length} article{saved.length > 1 ? 's' : ''} rangé{saved.length > 1 ? 's' : ''}
+      </span>
+      <label className={styles.userPicker}>
+        Qui range ?
+        <select
+          value={currentUser?.id ?? ''}
+          aria-label="Technicien qui saisit l’inventaire"
+          onChange={(event) =>
+            onSelectUser(event.target.value === '' ? null : Number(event.target.value))
+          }
+        >
+          <option value="">— Choisir un prénom —</option>
+          {users.map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.first_name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="button" className={`${styles.button} ${styles.primary}`} onClick={onClose}>
+        Terminer
+      </button>
+    </header>
+  );
+
+  // Aucun meuble encore dessiné : on commence par le plan.
   if (!racksLoading && racks.length === 0) {
     return (
       <div className={styles.screen}>
-        <header className={styles.header}>
-          <h1 className={styles.title}>
-            PlanStock
-            <span className={styles.subtitle}>Inventaire initial</span>
-          </h1>
-          <span className={styles.headerSpacer} />
-          {userPicker}
-          <button type="button" className={styles.button} onClick={onClose}>
-            Terminer
-          </button>
-        </header>
-        <RackWizard onCreate={createRacks} onSkip={onClose} error={error} />
+        {header}
+        <RackWizard
+          onCreate={async (payloads) => {
+            setError(null);
+            try {
+              await onCreateRacks(payloads);
+            } catch (cause) {
+              setError(messageOf(cause, 'Création du plan impossible.'));
+            }
+          }}
+          onSkip={onClose}
+          error={error}
+        />
       </div>
     );
   }
 
   return (
     <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>
-          PlanStock
-          <span className={styles.subtitle}>Inventaire initial</span>
-        </h1>
-        <span className={styles.counter}>
-          {saved.length} article{saved.length > 1 ? 's' : ''} enregistré
-          {saved.length > 1 ? 's' : ''} cette session
-        </span>
-        {userPicker}
-        <button type="button" className={`${styles.button} ${styles.primary}`} onClick={onClose}>
-          Terminer
-        </button>
-      </header>
+      {header}
 
-      <main className={styles.main}>
-        <section className={styles.column} aria-label="Saisie des articles">
-          <div className={styles.panel}>
-            <h2 className={styles.panelTitle}>Article à enregistrer</h2>
+      <main className={styles.stage}>
+        {!currentUser ? (
+          <p className={styles.warning}>
+            Choisis ton prénom en haut à droite avant de commencer.
+          </p>
+        ) : null}
+        {error ? <p className={styles.error}>{error}</p> : null}
 
-            {!currentUser ? (
-              <p className={styles.warning}>
-                Choisissez votre prénom en haut à droite : l’inventaire trace qui enregistre quoi.
-              </p>
-            ) : null}
-            {error ? <p className={styles.error}>{error}</p> : null}
-
-            <label className={`${styles.field} ${styles.reference}`}>
-              Référence
-              <input
-                ref={referenceRef}
-                type="text"
-                value={reference}
-                placeholder="ARB123"
-                autoComplete="off"
-                spellCheck={false}
-                autoFocus
-                onChange={(event) => setReference(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    event.preventDefault();
-                    backToReference();
-                  }
-                }}
-              />
-            </label>
-
-            <label className={styles.field}>
-              Désignation
-              <input
-                type="text"
-                value={designation}
-                placeholder="Imprimante A3 couleur"
-                autoComplete="off"
-                onChange={(event) => setDesignation(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    void save('physical');
-                  }
-                  if (event.key === 'Escape') {
-                    event.preventDefault();
-                    backToReference();
-                  }
-                }}
-              />
-            </label>
-
-            <div className={styles.target}>
-              <span className={styles.targetLabel}>
-                {awaiting ? 'En attente d’un clic sur le plan' : 'Emplacement de destination'}
-              </span>
-              <span
-                className={`${styles.targetCode} ${target ? '' : styles.targetEmpty} ${
-                  awaiting ? styles.awaiting : ''
-                }`}
-              >
-                {targetCode(target) ?? 'à choisir'}
-              </span>
+        {step === 'rack' ? (
+          <section className={styles.question}>
+            <h1 className={styles.ask}>Devant quel meuble es-tu ?</h1>
+            <div className={styles.choices}>
+              {racks.map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  className={styles.choice}
+                  onClick={() => {
+                    setRack(candidate);
+                    setShelfIndex(null);
+                    setSide('');
+                    setError(null);
+                    setStep(candidate.is_zone ? 'items' : 'shelf');
+                  }}
+                >
+                  <span className={styles.choiceCode}>{candidate.rack_code}</span>
+                  <span className={styles.choiceLabel}>{candidate.label || 'Sans nom'}</span>
+                  {candidate.aisle ? (
+                    <span
+                      className={styles.choiceAisle}
+                      style={{ color: aisleColor(candidate.aisle) }}
+                    >
+                      {candidate.aisle}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
             </div>
+          </section>
+        ) : null}
 
-            <div className={styles.actions}>
-              <button
-                type="button"
-                className={styles.button}
-                disabled={!currentUser}
-                onClick={() => void save('service')}
-              >
-                Marquer comme service
-              </button>
-              <button
-                type="button"
-                className={`${styles.button} ${styles.primary}`}
-                disabled={!currentUser}
-                onClick={() => void save('physical')}
-              >
-                Enregistrer
-              </button>
-            </div>
-
-            <p className={styles.hint}>
-              <span className={styles.kbd}>Tab</span> pour passer à la désignation,{' '}
-              <span className={styles.kbd}>Entrée</span> pour enregistrer. Le dernier emplacement
-              reste sélectionné : <span className={styles.kbd}>Entrée</span> seul range l’article
-              suivant au même endroit — pratique pour vider un carton. Cliquez une autre étagère ou
-              une zone pour changer de destination.
-            </p>
-          </div>
-
-          <div className={`${styles.panel} ${styles.panelGrow}`}>
-            <h2 className={styles.panelTitle}>Enregistrés cette session</h2>
-            {saved.length === 0 ? (
-              <p className={styles.empty}>Aucun article pour l’instant.</p>
-            ) : (
-              <ul className={styles.recent}>
-                {saved.map((entry, index) => (
-                  <li key={`${entry.reference}-${index}`} className={styles.recentRow}>
-                    <span className={styles.recentRef}>{entry.reference}</span>
-                    <span className={styles.recentDesignation}>{entry.designation || '—'}</span>
-                    {entry.code ? (
-                      <span className={styles.recentCode}>{entry.code}</span>
-                    ) : (
-                      <span className={styles.recentService}>service</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
-
-        <section className={styles.column} aria-label="Plan du local">
-          <div className={`${styles.panel} ${styles.panelGrow}`}>
-            <PlanPanel
-              racks={racks}
-              planWidth={planWidth}
-              planHeight={planHeight}
-              locationStates={emptyStates}
-              highlight={emptyHighlight}
-              focus={null}
-              loading={racksLoading}
-              canEdit={false}
-              selection={selection}
-              refreshToken={refreshToken}
-              onMoveItem={() => undefined}
-              onEditItem={() => undefined}
-              onDeleteItem={() => undefined}
+        {step === 'shelf' && rack ? (
+          <section className={styles.question}>
+            <h1 className={styles.ask}>
+              Quelle étagère de <span className={styles.askCode}>{rack.rack_code}</span> ?
+            </h1>
+            <p className={styles.askHint}>Clique la tablette devant toi. E1 est celle du haut.</p>
+            <RackElevation
+              shelvesCount={rack.shelves_count}
+              selected={shelfIndex}
+              onSelectShelf={(index) => {
+                setShelfIndex(index);
+                setError(null);
+                setStep('items');
+              }}
+              height={360}
             />
-          </div>
-        </section>
+            <button type="button" className={styles.link} onClick={() => setStep('rack')}>
+              ← Changer de meuble
+            </button>
+          </section>
+        ) : null}
+
+        {step === 'items' && rack ? (
+          <section className={styles.entry}>
+            <div className={styles.entryDrawing}>
+              {rack.is_zone ? (
+                <ZoneDrawing load={saved.length} highlighted height={170} />
+              ) : (
+                <RackElevation
+                  shelvesCount={rack.shelves_count}
+                  target={shelfIndex}
+                  targetSide={side || null}
+                  dimOthers
+                  height={260}
+                />
+              )}
+              <p className={styles.entryTarget}>{targetCode}</p>
+              <div className={styles.entryLinks}>
+                {rack.is_zone ? null : (
+                  <button type="button" className={styles.link} onClick={() => setStep('shelf')}>
+                    Changer d’étagère
+                  </button>
+                )}
+                <button type="button" className={styles.link} onClick={() => setStep('rack')}>
+                  Changer de meuble
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.entryForm}>
+              <h1 className={styles.ask}>Tape les références rangées ici</h1>
+
+              <label className={`${styles.field} ${styles.reference}`}>
+                Référence
+                <input
+                  ref={referenceRef}
+                  type="text"
+                  value={reference}
+                  placeholder="UK707E/L"
+                  autoComplete="off"
+                  spellCheck={false}
+                  onChange={(event) => setReference(event.target.value.toUpperCase())}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void save();
+                    }
+                  }}
+                />
+              </label>
+
+              <label className={styles.field}>
+                Désignation <span className={styles.optional}>facultatif</span>
+                <input
+                  type="text"
+                  value={designation}
+                  placeholder="Toner noir UK707"
+                  autoComplete="off"
+                  onChange={(event) => setDesignation(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void save();
+                    }
+                  }}
+                />
+              </label>
+
+              {rack.is_zone ? null : (
+                <div className={styles.field}>
+                  Côté <span className={styles.optional}>facultatif</span>
+                  <div className={styles.sides}>
+                    <button
+                      type="button"
+                      className={`${styles.sideButton} ${side === '' ? styles.sideOn : ''}`}
+                      onClick={() => setSide('')}
+                    >
+                      Non précisé
+                    </button>
+                    {SIDES.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        className={`${styles.sideButton} ${side === option ? styles.sideOn : ''}`}
+                        onClick={() => setSide(option)}
+                      >
+                        {SIDE_SHORT[option]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                className={`${styles.button} ${styles.primary} ${styles.wide}`}
+                disabled={!currentUser || busy}
+                onClick={() => void save()}
+              >
+                Ranger ici · Entrée
+              </button>
+
+              {saved.length > 0 ? (
+                <ul className={styles.recent}>
+                  {saved.slice(0, 8).map((entry, index) => (
+                    <li key={`${entry.reference}-${index}`} className={styles.recentRow}>
+                      <span className={styles.recentRef}>{entry.reference}</span>
+                      <span className={styles.recentDesignation}>{entry.designation || '—'}</span>
+                      <span className={styles.recentCode}>{entry.code}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
       </main>
     </div>
   );

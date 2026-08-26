@@ -1,9 +1,45 @@
 /** Types partagés avec l'API PlanStock (`/api/*`). */
 
+/** `other_site` reste la valeur en base ; l'interface l'appelle « Hors PlanStock ». */
 export type ItemKind = 'physical' | 'service' | 'other_site';
 
 /** Un rayonnage porte des étagères ; une zone (pile, palette, table…) n'en a pas. */
 export type RackKind = 'rack' | 'zone';
+
+/** Côté d'une étagère, indication facultative pour affiner la recherche à l'œil. */
+export type Side = 'left' | 'center' | 'right';
+
+/** Un des deux locaux couverts par l'application. */
+export interface Site {
+  id: number;
+  /** `optimium`, `sharp-center` */
+  code: string;
+  name: string;
+  /** Couleur d'accent du local, en hexadécimal. */
+  accent: string;
+  /** Nom de fichier dans `public/logos/`, vide si aucun logo fourni. */
+  logo: string;
+  position: number;
+  plan_width: number;
+  plan_height: number;
+  racks_count: number;
+  zones_count: number;
+  items_count: number;
+  created_at: string;
+}
+
+/** Repère du local : il aide à se situer et ne stocke aucun article. */
+export interface Landmark {
+  id: number;
+  site_id: number;
+  kind: 'door' | 'bench';
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  created_at: string;
+}
 
 /** Un emplacement est soit une étagère de rayonnage, soit une zone. */
 export interface Location {
@@ -17,6 +53,11 @@ export interface Location {
   rack_label: string;
   rack_aisle: string;
   shelf_index: number | null;
+  /** Gauche / centre / droite, ou `null` si non précisé. */
+  side: Side | null;
+  site_id: number | null;
+  site_code: string;
+  site_name: string;
   /** `E2` pour une étagère, `Z02` pour une zone. */
   short_code: string;
   /** `R03-E2` ou `Z02` — identifiant lisible et unique d'un emplacement. */
@@ -50,9 +91,9 @@ export interface Item {
 export type ShelfItem = Pick<
   Item,
   'id' | 'reference' | 'reference_display' | 'designation' | 'kind' | 'family_code' | 'family_label'
->;
+> & { side: Side | null };
 
-/** Bande d'étagère de la vue de face, avec les articles qu'elle porte. */
+/** Étagère d'un rayonnage, avec les articles qu'elle porte. */
 export interface Shelf {
   id: number;
   rack_id: number;
@@ -66,13 +107,14 @@ export interface Shelf {
 
 export interface Rack {
   id: number;
+  site_id: number;
   code: number;
   kind: RackKind;
   is_zone: boolean;
   /** `R03` ou `Z01` */
   rack_code: string;
   label: string;
-  /** Libellé d'allée facultatif, affiché en petit sur la vue de dessus. */
+  /** Libellé d'allée facultatif, qui donne sa couleur au rayonnage. */
   aisle: string;
   shelves_count: number;
   x: number;
@@ -108,12 +150,15 @@ export interface SearchResult {
   query: string;
   normalized: string;
   exact: Item | null;
+  /** Correspondances de référence, par préfixe. */
   matches: Item[];
+  /** Correspondances de désignation, sans doublon avec `matches`. */
+  by_designation: Item[];
 }
 
 export interface Health {
   ok: boolean;
-  counts: { users: number; racks: number; items: number };
+  counts: { users: number; sites: number; racks: number; items: number };
   /** Base sans emplacement ni article : déclenche le mode Inventaire initial. */
   empty: boolean;
 }

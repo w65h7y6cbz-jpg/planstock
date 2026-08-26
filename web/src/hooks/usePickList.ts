@@ -3,7 +3,9 @@ import {
   addManyToPickList,
   addToPickList,
   checkAll,
+  isPickListComplete,
   pendingPhysicalCount,
+  pickRoute,
   rackHighlights,
   removePickEntry,
   setPickEntryChecked,
@@ -11,19 +13,22 @@ import {
   splitPickList,
   togglePickEntry,
   type PickEntry,
+  type RouteStop,
 } from '../lib/picklist';
 import type { Item } from '../types';
 
 const STORAGE_KEY = 'planstock.picklist';
+const NPL_KEY = 'planstock.picklist_npl';
 
 /**
- * La liste survit à un rafraîchissement de page (sessionStorage) mais n'est
- * jamais enregistrée en base : c'est un brouillon de préparation, pas une donnée
- * de stock.
+ * La liste survit à la fermeture du navigateur (localStorage) : une préparation
+ * interrompue par une fausse manœuvre se retrouve à la réouverture. Elle n'est
+ * jamais enregistrée en base : c'est un brouillon de travail, pas une donnée de
+ * stock.
  */
 function readStoredEntries(): PickEntry[] {
   try {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];
     const parsed: unknown = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
@@ -39,13 +44,27 @@ function readStoredEntries(): PickEntry[] {
   }
 }
 
+function readStoredNpl(): string {
+  try {
+    return localStorage.getItem(NPL_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export interface PickListState {
   entries: PickEntry[];
   physical: PickEntry[];
   withoutStock: PickEntry[];
   pending: number;
+  /** Numéro du bon de préparation en cours, ex. « NPL12345 ». */
+  npl: string;
+  setNpl: (npl: string) => void;
+  complete: boolean;
   locations: Map<string, 'lit' | 'done'>;
   racks: Map<number, { pending: number; done: number }>;
+  /** Parcours numéroté tracé sur le plan. */
+  route: RouteStop[];
   /** Ligne à faire clignoter : référence déjà présente dans la liste. */
   flashedItemId: number | null;
   add: (item: Item) => boolean;
@@ -61,15 +80,24 @@ export interface PickListState {
 
 export function usePickList(): PickListState {
   const [entries, setEntries] = useState<PickEntry[]>(readStoredEntries);
+  const [npl, setNpl] = useState<string>(readStoredNpl);
   const [flashedItemId, setFlashedItemId] = useState<number | null>(null);
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
     } catch {
-      // Sans stockage de session, la liste vaut pour l'affichage en cours.
+      // Sans stockage local, la liste vaut pour l'affichage en cours.
     }
   }, [entries]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NPL_KEY, npl);
+    } catch {
+      // Idem : le numéro de bon reste affiché sans être mémorisé.
+    }
+  }, [npl]);
 
   useEffect(() => {
     if (flashedItemId === null) return;
@@ -104,14 +132,23 @@ export function usePickList(): PickListState {
       physical,
       withoutStock,
       pending: pendingPhysicalCount(entries),
+      complete: isPickListComplete(entries),
       locations: locationStates(entries),
       racks: rackHighlights(entries),
+      route: pickRoute(entries),
     };
   }, [entries]);
+
+  const clear = useCallback(() => {
+    setEntries([]);
+    setNpl('');
+  }, []);
 
   return {
     entries,
     ...derived,
+    npl,
+    setNpl,
     flashedItemId,
     add,
     addMany,
@@ -129,6 +166,6 @@ export function usePickList(): PickListState {
     ),
     remove: useCallback((itemId) => setEntries((current) => removePickEntry(current, itemId)), []),
     checkEverything: useCallback(() => setEntries((current) => checkAll(current)), []),
-    clear: useCallback(() => setEntries([]), []),
+    clear,
   };
 }

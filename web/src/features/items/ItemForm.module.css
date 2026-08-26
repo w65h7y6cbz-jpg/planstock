@@ -22,7 +22,7 @@
   font-size: 15px;
   color: var(--text);
   background: var(--bg);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
 }
 
@@ -64,7 +64,7 @@
   font-size: 14px;
   color: var(--text);
   background: var(--bg);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition:
@@ -90,8 +90,8 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-3);
-  background: var(--bg-sunken);
-  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
 }
 
@@ -124,7 +124,7 @@
 .chosenEmpty {
   color: var(--text-muted);
   background: transparent;
-  border-color: var(--border);
+  border-color: var(--line);
 }
 
 .pickHint {
@@ -159,7 +159,7 @@
   min-height: var(--tap-target);
   padding: 0 var(--space-4);
   background: var(--bg);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   transition:
     background var(--transition),
@@ -168,7 +168,7 @@
 
 .button:hover:not(:disabled) {
   border-color: var(--accent-border);
-  background: var(--bg-sunken);
+  background: var(--surface-2);
 }
 
 .button:disabled {
@@ -185,4 +185,14 @@
 .primary:hover:not(:disabled) {
   background: var(--accent);
   filter: brightness(1.08);
+}
+
+/* Marque un champ dont on peut se passer : le côté d'étagère, notamment. */
+.optional {
+  padding: 1px var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
 }

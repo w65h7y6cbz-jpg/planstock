@@ -18,22 +18,30 @@ export interface RacksState {
 const messageOf = (cause: unknown, fallback: string) =>
   cause instanceof Error ? cause.message : fallback;
 
-/** Rayonnages du local : chargement, création, modification, suppression. */
-export function useRacks(): RacksState {
+/**
+ * Rayonnages du local sélectionné : chargement, création, modification,
+ * suppression. Tant qu'aucun local n'est choisi, la liste reste vide.
+ */
+export function useRacks(siteId: number | null): RacksState {
   const [racks, setRacks] = useState<Rack[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
+    if (!siteId) {
+      setRacks([]);
+      setLoading(false);
+      return;
+    }
     try {
-      setRacks(await api.racks.list());
+      setRacks(await api.racks.list(siteId));
       setError(null);
     } catch (cause) {
       setError(messageOf(cause, 'Impossible de charger le plan.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [siteId]);
 
   useEffect(() => {
     void reload();
@@ -42,28 +50,28 @@ export function useRacks(): RacksState {
   const createRack = useCallback(
     async (payload: RackPayload) => {
       try {
-        await api.racks.create(payload);
+        await api.racks.create({ site_id: siteId ?? undefined, ...payload });
         setError(null);
         await reload();
       } catch (cause) {
         setError(messageOf(cause, 'Création du rayonnage impossible.'));
       }
     },
-    [reload],
+    [reload, siteId],
   );
 
   const createRacks = useCallback(
     async (payloads: RackPayload[]) => {
       try {
         for (const payload of payloads) {
-          await api.racks.create(payload);
+          await api.racks.create({ site_id: siteId ?? undefined, ...payload });
         }
         setError(null);
       } finally {
         await reload();
       }
     },
-    [reload],
+    [reload, siteId],
   );
 
   const updateRack = useCallback(

@@ -1,0 +1,98 @@
+.pane,
+.formPane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+}
+
+.formPane {
+  max-width: 720px;
+}
+
+.toolbar {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-md);
+  background: var(--surface-2);
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.search:focus {
+  border-color: var(--accent);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-faint);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.table td {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.table tbody tr {
+  background: var(--surface-2);
+}
+
+/* Une ligne sur deux en fond neutre : la lecture suit la ligne sans filets. */
+.table tbody tr:nth-child(even) {
+  background: var(--surface);
+}
+
+.table tbody tr:first-child td:first-child {
+  border-top-left-radius: var(--radius-sm);
+}
+
+.table tbody tr:first-child td:last-child {
+  border-top-right-radius: var(--radius-sm);
+}
+
+.ref {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.designation {
+  color: var(--text-muted);
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.side {
+  color: var(--text-muted);
+}
+
+.rowActions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}

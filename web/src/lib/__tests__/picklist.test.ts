@@ -3,7 +3,9 @@ import {
   addManyToPickList,
   addToPickList,
   checkAll,
+  isPickListComplete,
   pendingPhysicalCount,
+  pickRoute,
   rackHighlights,
   removePickEntry,
   locationStates,
@@ -27,6 +29,10 @@ function shelf(rackId: number, rackCode: number, shelfIndex: number): Location {
     rack_label: `Rayon ${rackCode}`,
     rack_aisle: '',
     shelf_index: shelfIndex,
+    side: null,
+    site_id: 1,
+    site_code: 'optimium',
+    site_name: 'Optimium',
     short_code: `E${shelfIndex}`,
     code: `R${String(rackCode).padStart(2, '0')}-E${shelfIndex}`,
   };
@@ -44,6 +50,10 @@ function zone(rackId: number, zoneCode: number, label = `Zone ${zoneCode}`): Loc
     rack_label: label,
     rack_aisle: '',
     shelf_index: null,
+    side: null,
+    site_id: 1,
+    site_code: 'optimium',
+    site_name: 'Optimium',
     short_code: `Z${String(zoneCode).padStart(2, '0')}`,
     code: `Z${String(zoneCode).padStart(2, '0')}`,
   };
@@ -186,5 +196,44 @@ describe('éclairage du plan', () => {
     const highlights = rackHighlights(entries);
     expect(highlights.get(1)).toEqual({ pending: 1, done: 1 });
     expect(highlights.get(2)).toEqual({ pending: 1, done: 0 });
+  });
+});
+
+describe('parcours de préparation tracé sur le plan', () => {
+  it('numérote un arrêt par meuble, dans l’ordre de saisie', () => {
+    const a = item('AAA111', 'physical', [shelf(1, 3, 2)]);
+    const b = item('BBB222', 'physical', [zone(7, 2)]);
+    const c = item('CCC333', 'physical', [shelf(1, 3, 5)]);
+
+    expect(pickRoute(entriesOf(a, b, c))).toEqual([
+      { rackId: 1, position: 1, pending: 2, done: 0 },
+      { rackId: 7, position: 2, pending: 1, done: 0 },
+    ]);
+  });
+
+  it('garde son numéro à un arrêt terminé : le tracé ne se renumérote pas', () => {
+    const a = item('AAA111', 'physical', [shelf(1, 3, 2)]);
+    const b = item('BBB222', 'physical', [shelf(2, 5, 1)]);
+    const route = pickRoute(togglePickEntry(entriesOf(a, b), a.id));
+
+    expect(route[0]).toEqual({ rackId: 1, position: 1, pending: 0, done: 1 });
+    expect(route[1].position).toBe(2);
+  });
+
+  it('ignore les articles sans stock physique', () => {
+    const service = item('DEPITUC', 'service');
+    const range = item('AAA111', 'physical', [shelf(1, 3, 2)]);
+
+    expect(pickRoute(entriesOf(service, range)).map((stop) => stop.rackId)).toEqual([1]);
+  });
+
+  it('déclare la préparation terminée seulement quand tout est coché', () => {
+    const a = item('AAA111', 'physical', [shelf(1, 3, 2)]);
+    const b = item('BBB222', 'physical', [shelf(1, 3, 3)]);
+    const entries = entriesOf(a, b);
+
+    expect(isPickListComplete([])).toBe(false);
+    expect(isPickListComplete(entries)).toBe(false);
+    expect(isPickListComplete(checkAll(entries))).toBe(true);
   });
 });

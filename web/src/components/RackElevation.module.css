@@ -1,0 +1,220 @@
+.svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* ---- Structure du meuble ---- */
+
+.ground {
+  stroke: var(--line-strong);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+}
+
+.back {
+  fill: var(--surface-2);
+}
+
+.upright {
+  fill: var(--steel);
+}
+
+/* Reflet sur l'arête du montant : donne le métal sans dessiner de dégradé. */
+.uprightShine {
+  fill: var(--steel-light);
+}
+
+.hole {
+  fill: var(--steel-dark);
+}
+
+.foot {
+  fill: var(--steel-dark);
+}
+
+/* ---- Étagères ---- */
+
+.shelf {
+  transition: opacity var(--transition);
+}
+
+.slot {
+  fill: transparent;
+  transition: fill var(--transition);
+}
+
+.board {
+  fill: var(--shelf-board);
+  transition: fill var(--transition);
+}
+
+.boardEdge {
+  fill: var(--steel);
+  transition: fill var(--transition);
+}
+
+.shelfCode {
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 5px;
+  font-weight: 700;
+  text-anchor: end;
+  dominant-baseline: middle;
+  transition: fill var(--transition);
+}
+
+/* Les étagères qui ne sont pas la bonne s'effacent : l'œil ne va qu'à une. */
+.shelfFaded {
+  opacity: 0.28;
+}
+
+.shelfTarget .slot {
+  fill: var(--accent-soft);
+}
+
+.shelfTarget .board,
+.shelfTarget .boardEdge {
+  fill: var(--accent);
+}
+
+.shelfTarget .shelfCode {
+  fill: var(--accent);
+  font-size: 6.4px;
+}
+
+/* Étagère concernée par la liste de préparation, sur la vue complète. */
+.shelfLit .slot {
+  fill: var(--accent-soft);
+}
+
+.shelfDone .slot {
+  fill: var(--success-soft);
+}
+
+.shelfDone .board,
+.shelfDone .boardEdge {
+  fill: var(--success);
+}
+
+.shelfClickable {
+  cursor: pointer;
+}
+
+.shelfClickable:hover .slot {
+  fill: var(--accent-soft);
+}
+
+/* Même remarque que sur le plan : le contour par défaut du navigateur autour
+   d'un groupe SVG est disgracieux, on marque le focus sur l'étagère. */
+.shelfClickable:focus,
+.shelfClickable:focus-visible {
+  outline: none;
+}
+
+.shelfClickable:focus-visible .slot,
+.shelfSelected .slot {
+  fill: var(--accent-soft-2);
+}
+
+.shelfSelected .board,
+.shelfSelected .boardEdge {
+  fill: var(--accent);
+}
+
+/* ---- Repère de l'article cherché ---- */
+
+.markerHalo {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 0.9;
+  stroke-dasharray: 3 2;
+}
+
+.tick {
+  stroke: var(--accent);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+
+.spot {
+  fill: var(--accent);
+}
+
+/* Deux battements puis plus rien : on montre l'endroit, on ne clignote pas. */
+.spotPulse {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  animation: ping 1100ms ease-out 2;
+  transform-origin: center;
+}
+
+@keyframes ping {
+  from {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+.markerText {
+  fill: var(--accent);
+  font-size: 4.6px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+/* ---- Zone au sol ---- */
+
+.pallet {
+  fill: var(--plan-zone-side);
+}
+
+.palletBlock {
+  fill: var(--plan-zone-top);
+}
+
+.cartonLight {
+  fill: var(--plan-zone-top);
+  stroke: var(--plan-zone-side);
+  stroke-width: 0.7;
+}
+
+.cartonDark {
+  fill: var(--plan-zone-side);
+  stroke: var(--plan-zone-side);
+  stroke-width: 0.7;
+}
+
+.cartonTape {
+  stroke: var(--surface);
+  stroke-width: 1.6;
+  opacity: 0.5;
+}
+
+.zoneLit .cartonDark,
+.zoneLit .cartonLight {
+  stroke: var(--accent);
+  stroke-width: 1.1;
+}
+
+.arrow {
+  fill: var(--accent);
+  animation: nudge 900ms ease-in-out 2;
+}
+
+@keyframes nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}

@@ -3,6 +3,7 @@ import type {
   Health,
   Item,
   ItemKind,
+  Landmark,
   Movement,
   Rack,
   RackDetail,
@@ -10,6 +11,8 @@ import type {
   SearchResult,
   Settings,
   Shelf,
+  Side,
+  Site,
   User,
 } from './types';
 
@@ -61,9 +64,12 @@ export interface ItemPayload {
   shelf_id?: number | null;
   /** Zone de destination — exclusif avec `shelf_id`. */
   zone_id?: number | null;
+  /** Côté d'étagère, facultatif ; ignoré pour une zone. */
+  side?: Side | null;
 }
 
 export interface RackPayload {
+  site_id?: number;
   code?: number;
   kind?: RackKind;
   label?: string;
@@ -88,8 +94,40 @@ export const api = {
       request<User>(`/users/${id}`, { method: 'PATCH', ...json(changes) }),
   },
 
+  sites: {
+    list: () => request<Site[]>('/sites'),
+    update: (
+      id: number,
+      changes: {
+        name?: string;
+        accent?: string;
+        logo?: string;
+        plan_width?: number;
+        plan_height?: number;
+      },
+    ) => request<Site>(`/sites/${id}`, { method: 'PATCH', ...json(changes) }),
+  },
+
+  landmarks: {
+    list: (siteId: number) => request<Landmark[]>(`/landmarks?site_id=${siteId}`),
+    create: (payload: {
+      site_id: number;
+      kind: 'door' | 'bench';
+      label?: string;
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+    }) => request<Landmark>('/landmarks', { method: 'POST', ...json(payload) }),
+    update: (
+      id: number,
+      changes: { label?: string; x?: number; y?: number; width?: number; height?: number },
+    ) => request<Landmark>(`/landmarks/${id}`, { method: 'PATCH', ...json(changes) }),
+    remove: (id: number) => request<{ deleted: boolean }>(`/landmarks/${id}`, { method: 'DELETE' }),
+  },
+
   racks: {
-    list: () => request<Rack[]>('/racks'),
+    list: (siteId?: number) => request<Rack[]>(`/racks${siteId ? `?site_id=${siteId}` : ''}`),
     get: (id: number) => request<RackDetail>(`/racks/${id}`),
     shelves: (id: number) => request<Shelf[]>(`/racks/${id}/shelves`),
     create: (payload: RackPayload) =>
@@ -100,16 +138,28 @@ export const api = {
   },
 
   items: {
-    list: (query?: string) =>
-      request<Item[]>(`/items${query ? `?q=${encodeURIComponent(query)}` : ''}`),
-    search: (query: string) =>
-      request<SearchResult>(`/items/search?q=${encodeURIComponent(query)}`),
+    list: (query?: string, siteId?: number) => {
+      const params = new URLSearchParams();
+      if (query) params.set('q', query);
+      if (siteId) params.set('site_id', String(siteId));
+      const search = params.toString();
+      return request<Item[]>(`/items${search ? `?${search}` : ''}`);
+    },
+    /** La recherche ne franchit pas la frontière entre les deux locaux. */
+    search: (query: string, siteId?: number) =>
+      request<SearchResult>(
+        `/items/search?q=${encodeURIComponent(query)}${siteId ? `&site_id=${siteId}` : ''}`,
+      ),
     get: (id: number) => request<Item>(`/items/${id}`),
     create: (userId: number, payload: ItemPayload) =>
       request<Item>('/items', { method: 'POST', ...json({ user_id: userId, ...payload }) }),
     update: (userId: number, id: number, payload: Partial<ItemPayload>) =>
       request<Item>(`/items/${id}`, { method: 'PATCH', ...json({ user_id: userId, ...payload }) }),
-    move: (userId: number, id: number, target: { shelf_id?: number; zone_id?: number }) =>
+    move: (
+      userId: number,
+      id: number,
+      target: { shelf_id?: number; zone_id?: number; side?: Side | null },
+    ) =>
       request<Item>(`/items/${id}/location`, {
         method: 'PUT',
         ...json({ user_id: userId, ...target }),
@@ -153,5 +203,6 @@ export const api = {
       }),
   },
 
-  exportUrl: (format: 'xlsx' | 'csv') => `/api/export/${format}`,
+  exportUrl: (format: 'xlsx' | 'csv', siteId?: number) =>
+    `/api/export/${format}${siteId ? `?site_id=${siteId}` : ''}`,
 };

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type ItemPayload } from '../../api';
-import type { Item, ItemKind, Rack, Shelf } from '../../types';
+import { SIDE_SHORT, SIDES } from '../../lib/labels';
+import type { Item, ItemKind, Rack, Shelf, Side } from '../../types';
 import styles from './ItemForm.module.css';
 
 const KIND_LABELS: { value: ItemKind; label: string }[] = [
   { value: 'physical', label: 'Physique' },
   { value: 'service', label: 'Service' },
-  { value: 'other_site', label: 'Autre site' },
+  { value: 'other_site', label: 'Hors PlanStock' },
 ];
 
 interface ItemFormProps {
@@ -14,10 +15,6 @@ interface ItemFormProps {
   item: Item | null;
   presetReference?: string;
   racks: Rack[];
-  /** Emplacement choisi en cliquant directement sur le plan. */
-  picked: { shelf?: Shelf; zone?: Rack } | null;
-  /** Active la sélection d'un emplacement pendant que le formulaire est ouvert. */
-  onPickingChange: (active: boolean) => void;
   onSubmit: (payload: ItemPayload) => Promise<boolean>;
   onCancel: () => void;
   error: string | null;
@@ -27,8 +24,6 @@ export function ItemForm({
   item,
   presetReference = '',
   racks,
-  picked,
-  onPickingChange,
   onSubmit,
   onCancel,
   error,
@@ -42,6 +37,7 @@ export function ItemForm({
   const [familyLabel, setFamilyLabel] = useState(item?.family_label ?? '');
   const [rackId, setRackId] = useState<number | null>(current?.rack_id ?? racks[0]?.id ?? null);
   const [shelfId, setShelfId] = useState<number | null>(current?.shelf_id ?? null);
+  const [side, setSide] = useState<Side | ''>(current?.side ?? '');
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -54,23 +50,6 @@ export function ItemForm({
     referenceRef.current?.focus();
     referenceRef.current?.select();
   }, []);
-
-  // Le clic sur le plan ne vaut que pour un article physique.
-  useEffect(() => {
-    onPickingChange(kind === 'physical');
-    return () => onPickingChange(false);
-  }, [kind, onPickingChange]);
-
-  useEffect(() => {
-    if (!picked) return;
-    if (picked.shelf) {
-      setRackId(picked.shelf.rack_id);
-      setShelfId(picked.shelf.id);
-    } else if (picked.zone) {
-      setRackId(picked.zone.id);
-      setShelfId(null);
-    }
-  }, [picked]);
 
   useEffect(() => {
     if (rackId === null || isZone) {
@@ -112,6 +91,7 @@ export function ItemForm({
       family_label: familyLabel.trim() || null,
       shelf_id: kind === 'physical' && !isZone ? shelfId : null,
       zone_id: kind === 'physical' && isZone ? rackId : null,
+      side: kind === 'physical' && !isZone && side ? side : null,
     });
     setBusy(false);
     if (!success) referenceRef.current?.focus();
@@ -232,15 +212,42 @@ export function ItemForm({
             </label>
           </div>
 
-          <p className={`${styles.pickHint} ${styles.pickActive}`}>
-            Vous pouvez aussi cliquer directement une étagère (vue de face) ou une zone (vue de
-            dessus) sur le plan à droite.
-          </p>
+          {isZone ? null : (
+            <div className={styles.field}>
+              Côté de l’étagère <span className={styles.optional}>facultatif</span>
+              <div className={styles.kinds} role="radiogroup" aria-label="Côté de l’étagère">
+                <label className={`${styles.kind} ${side === '' ? styles.kindActive : ''}`}>
+                  <input
+                    type="radio"
+                    name="side"
+                    checked={side === ''}
+                    onChange={() => setSide('')}
+                  />
+                  Non précisé
+                </label>
+                {SIDES.map((option) => (
+                  <label
+                    key={option}
+                    className={`${styles.kind} ${side === option ? styles.kindActive : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="side"
+                      checked={side === option}
+                      onChange={() => setSide(option)}
+                    />
+                    {SIDE_SHORT[option]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <p className={styles.pickHint}>
-          Un article {kind === 'service' ? 'de type service' : 'd’un autre site'} n’a pas
-          d’emplacement dans ce local : il apparaîtra dans « Sans stock physique ».
+          Un article {kind === 'service' ? 'de type service' : 'hors PlanStock'} n’a pas
+          d’emplacement : la recherche le trouvera depuis les deux locaux, avec un message à la
+          place du code.
         </p>
       )}
 

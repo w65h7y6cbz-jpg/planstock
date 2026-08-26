@@ -1,0 +1,90 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 100%;
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.error {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-md);
+}
+
+.loading {
+  color: var(--text-muted);
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  justify-content: center;
+  margin-top: var(--space-4);
+}
+
+/* Chaque local est une grande carte à sa couleur : on la reconnaît de loin,
+   avant même d'avoir lu son nom. */
+.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 300px;
+  max-width: 100%;
+  padding: var(--space-6) var(--space-4);
+  color: var(--text);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--transition),
+    box-shadow var(--transition),
+    background var(--transition);
+}
+
+.choice:hover,
+.choice:focus-visible {
+  transform: translateY(-3px);
+  background: color-mix(in srgb, var(--site-accent) 8%, var(--surface));
+  box-shadow: var(--shadow-lg);
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  margin-bottom: var(--space-2);
+  background: color-mix(in srgb, var(--site-accent) 14%, var(--surface-2));
+  border-radius: var(--radius-lg);
+}
+
+.name {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--site-accent);
+  letter-spacing: -0.01em;
+}
+
+.summary {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}

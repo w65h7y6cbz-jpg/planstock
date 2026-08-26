@@ -1,84 +1,269 @@
+/* La barre passe au-dessus du tiroir de préparation : ses menus doivent rester
+   atteignables pendant une préparation. */
 .bar {
+  position: relative;
+  z-index: 60;
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-5);
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-3);
+  flex: 0 0 auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
+/* Logo + nom du local : le retour à l'accueil. */
 .brand {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: 19px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  margin-right: auto;
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  transition: background var(--transition);
+}
+
+.brand:hover {
+  background: var(--surface-2);
+}
+
+.siteName {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--accent);
   letter-spacing: -0.01em;
 }
 
-.room {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
-.spacer {
-  flex: 1;
-}
-
-.field {
+.actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-.label {
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.select {
-  min-height: var(--tap-target);
-  min-width: 160px;
-  padding: 0 var(--space-3);
-  background: var(--bg);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  transition: border-color var(--transition);
-}
-
-.select:hover {
-  border-color: var(--accent-border);
-}
-
-.selectEmpty {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .action {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: var(--space-2);
   min-height: var(--tap-target);
-  min-width: var(--tap-target);
   padding: 0 var(--space-3);
-  background: var(--bg);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
   transition:
     background var(--transition),
-    border-color var(--transition);
+    color var(--transition);
 }
 
 .action:hover {
-  background: var(--bg-sunken);
-  border-color: var(--accent-border);
+  background: var(--surface-3);
+}
+
+/* Une préparation est en cours : le bouton Liste ne se fond plus dans la barre. */
+.actionLive {
+  color: var(--accent-contrast);
+  background: var(--accent);
+}
+
+.actionLive:hover {
+  background: var(--accent-strong);
+}
+
+.kbd {
+  padding: 1px var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  background: var(--surface);
+  border-radius: 6px;
+}
+
+.actionLive .kbd {
+  color: inherit;
+  background: rgb(255 255 255 / 20%);
+}
+
+.badge,
+.badgeDone {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--radius-pill);
+}
+
+.badge {
+  color: var(--accent);
+  background: var(--accent-contrast);
+}
+
+.badgeDone {
+  color: var(--accent-contrast);
+  background: var(--success);
 }
 
 .icon {
-  font-size: 16px;
-  line-height: 1;
+  display: inline-grid;
+  place-items: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  font-size: var(--text-lg);
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.icon:hover {
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.holder {
+  position: relative;
+}
+
+/* Pastille d'initiale + prénom en toutes lettres. */
+.user {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3) 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  transition: background var(--transition);
+}
+
+.user:hover {
+  background: var(--surface-3);
+}
+
+.avatar,
+.avatarSmall {
+  display: inline-grid;
+  place-items: center;
+  font-weight: 700;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  font-size: var(--text-md);
+}
+
+.avatarSmall {
+  width: 30px;
+  height: 30px;
+  font-size: var(--text-xs);
+}
+
+.userName {
+  white-space: nowrap;
+}
+
+.menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 264px;
+  padding: var(--space-2);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: drop 140ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.menuTitle {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.menuEmpty {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  text-align: left;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+
+.menuItem:hover {
+  background: var(--surface-2);
+}
+
+.menuItemActive {
+  background: var(--accent-soft);
+}
+
+.menuLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-weight: 500;
+}
+
+.menuHint {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+/* Écran étroit : les libellés disparaissent, les pictogrammes restent. */
+@media (max-width: 1000px) {
+  .action {
+    gap: 0;
+    font-size: 0;
+    padding: 0 var(--space-3);
+  }
+
+  .kbd,
+  .userName {
+    display: none;
+  }
+
+  .badge,
+  .badgeDone {
+    font-size: var(--text-xs);
+  }
+
+  .user {
+    padding: 0 var(--space-1);
+  }
 }
