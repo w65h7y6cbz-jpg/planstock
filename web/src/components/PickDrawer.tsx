@@ -6,10 +6,13 @@ import styles from './PickDrawer.module.css';
 /**
  * Liste de préparation, en tiroir à droite.
  *
- * Elle s'ouvre au premier ajout et garde l'ordre de saisie — l'ordre du bon
- * papier, ligne par ligne. Un article coché reste à sa place, barré : on voit
- * d'un coup ce qui est fait et ce qui reste, sans que la liste se réorganise
- * sous les yeux.
+ * Elle s'ouvre au premier ajout et garde l'ordre de saisie, ligne par ligne. Un
+ * article coché reste à sa place, barré : on voit d'un coup ce qui est fait et
+ * ce qui reste, sans que la liste se réorganise sous les yeux.
+ *
+ * Rien à nommer, rien à saisir : la liste se remplit toute seule au fil des
+ * références tapées dans la recherche. On ne tape jamais qu'une référence dans
+ * PlanStock.
  */
 
 interface PickDrawerProps {
@@ -20,7 +23,7 @@ interface PickDrawerProps {
 }
 
 export function PickDrawer({ open, pickList, onClose, onShow }: PickDrawerProps) {
-  const { entries, pending, complete, npl, setNpl } = pickList;
+  const { entries, pending, complete } = pickList;
   const done = entries.length - pending;
 
   return (
@@ -32,18 +35,6 @@ export function PickDrawer({ open, pickList, onClose, onShow }: PickDrawerProps)
             ×
           </button>
         </div>
-
-        <label className={styles.nplField}>
-          <span className={styles.nplLabel}>N° du bon</span>
-          <input
-            className={styles.nplInput}
-            value={npl}
-            onChange={(event) => setNpl(event.target.value.toUpperCase())}
-            placeholder="NPL12345"
-            spellCheck={false}
-            autoComplete="off"
-          />
-        </label>
 
         {entries.length > 0 ? (
           <p className={styles.counter}>

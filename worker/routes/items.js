@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { badRequest, body, conflict, requireUser, routeId } from '../lib/http.js';
+import { badRequest, body, conflict, notFound, requireUser, routeId } from '../lib/http.js';
 import { cleanDisplayReference, normalizeReference } from '../lib/reference.js';
 import {
   SIDES,
@@ -86,6 +86,44 @@ function readSiteId(c) {
   return Number.isInteger(siteId) && siteId > 0 ? siteId : null;
 }
 
+/**
+ * `?customer_id=` bascule la recherche dans le sous-stock d'un client.
+ * Absent : le stock global du local, c'est le cas ordinaire.
+ */
+async function readSearchCustomerId(db, c, siteId) {
+  const raw = c.req.query('customer_id');
+  if (raw === undefined || raw === '') return null;
+
+  const id = Number(raw);
+  if (!Number.isInteger(id) || id <= 0) throw badRequest('Stock à part invalide.');
+
+  const customer = await db.get('SELECT id, site_id, name FROM customers WHERE id = ?', id);
+  if (!customer) throw notFound('Stock à part introuvable.');
+  if (siteId && customer.site_id !== siteId) {
+    throw badRequest(`« ${customer.name} » n’est pas un stock à part de ce local.`);
+  }
+  return customer.id;
+}
+
+/**
+ * Client à qui ce rangement est réservé, ou `null` pour le stock global.
+ * Le client doit appartenir au local de l'emplacement visé : sans ce contrôle
+ * on réserverait à un client de Sharp Center une étagère d'Optimium.
+ */
+async function readLocationCustomer(db, payload, location) {
+  const id = readId(payload.customer_id, 'Stock');
+  if (id === null) return null;
+
+  const customer = await db.get('SELECT id, site_id, name FROM customers WHERE id = ?', id);
+  if (!customer) throw notFound('Stock à part introuvable.');
+  // En modification, le stock peut être précisé sans que l'emplacement change :
+  // on ne contrôle le local que lorsqu'une destination est connue.
+  if (location && customer.site_id !== location.site_id) {
+    throw badRequest(`« ${customer.name} » n’est pas un stock à part de ce local.`);
+  }
+  return customer;
+}
+
 export const items = new Hono();
 
 items.get('/', async (c) => {
@@ -106,15 +144,17 @@ items.get('/search', async (c) => {
   const raw = String(c.req.query('q') ?? '');
   const normalized = normalizeReference(raw);
   const siteId = readSiteId(c);
+  // `null` = stock global : c'est le défaut, et c'est ce qu'on veut.
+  const customerId = await readSearchCustomerId(db, c, siteId);
 
   if (!normalized) {
     return c.json({ query: raw, normalized: '', exact: null, matches: [], by_designation: [] });
   }
 
-  const exact = await findItemByReference(db, normalized, siteId);
+  const exact = await findItemByReference(db, normalized, siteId, customerId);
   const longEnough = normalized.length >= PREFIX_MIN_LENGTH;
   const matches = longEnough
-    ? await listItems(db, { search: normalized, siteId, limit: PREFIX_MAX_RESULTS })
+    ? await listItems(db, { search: normalized, siteId, customerId, limit: PREFIX_MAX_RESULTS })
     : exact
       ? [exact]
       : [];
@@ -124,7 +164,12 @@ items.get('/search', async (c) => {
   const known = new Set(matches.map((item) => item.id));
   const byDesignation = longEnough
     ? (
-        await listItems(db, { designation: raw.trim(), siteId, limit: PREFIX_MAX_RESULTS })
+        await listItems(db, {
+          designation: raw.trim(),
+          siteId,
+          customerId,
+          limit: PREFIX_MAX_RESULTS,
+        })
       ).filter((item) => !known.has(item.id))
     : [];
 
@@ -149,6 +194,10 @@ items.post('/', async (c) => {
   const kind = readKind(payload.kind);
   const requested = await readLocation(db, payload);
   const location = requested ?? null;
+  const customer = await readLocationCustomer(db, payload, location);
+  if (customer && !location) {
+    throw badRequest('Un article sans emplacement ne peut pas être rangé dans un stock à part.');
+  }
 
   if (isPhysical(kind) && !location) {
     throw badRequest('Un article physique doit être rangé sur une étagère ou une zone.');
@@ -180,11 +229,12 @@ items.post('/', async (c) => {
     ),
     location
       ? db.stmt(
-          `INSERT INTO item_locations (item_id, shelf_id, zone_id, side)
-           VALUES (last_insert_rowid(), ?, ?, ?)`,
+          `INSERT INTO item_locations (item_id, shelf_id, zone_id, side, customer_id)
+           VALUES (last_insert_rowid(), ?, ?, ?, ?)`,
           columns.shelf_id,
           columns.zone_id,
           columns.side,
+          customer?.id ?? null,
         )
       : null,
     movementStatementByReference(db, {
@@ -192,7 +242,7 @@ items.post('/', async (c) => {
       designation,
       user,
       action: 'create',
-      to: location,
+      to: location ? { ...location, customer_name: customer?.name ?? '' } : null,
     }),
   ]);
 
@@ -225,8 +275,14 @@ items.patch('/:id', async (c) => {
   const familyCode = readFamily(payload.family_code, item.family_code);
   const familyLabel = readFamily(payload.family_label, item.family_label);
 
-  const current = item.locations[0] ?? null;
   const requested = await readLocation(db, payload);
+  const customer = await readLocationCustomer(db, payload, requested ?? null);
+  const customerId = customer?.id ?? null;
+
+  // Un article peut être rangé au stock général ET dans un ou plusieurs stocks
+  // à part. On ne touche qu'à celui qui est visé — sinon corriger la
+  // désignation d'un article emporterait ses réservations au passage.
+  const current = item.locations.find((row) => (row.customer_id ?? null) === customerId) ?? null;
   let target = current;
 
   if (!isPhysical(kind)) {
@@ -268,20 +324,39 @@ items.patch('/:id', async (c) => {
       new Date().toISOString(),
       id,
     ),
-    locationChanged ? db.stmt('DELETE FROM item_locations WHERE item_id = ?', id) : null,
+    // Un article qui devient Service ou Hors PlanStock n'a plus d'existence
+    // physique nulle part : il perd tous ses rangements, stocks à part compris.
+    // Sinon on ne défait que celui du stock visé.
+    !isPhysical(kind)
+      ? db.stmt('DELETE FROM item_locations WHERE item_id = ?', id)
+      : locationChanged
+        ? db.stmt(
+            'DELETE FROM item_locations WHERE item_id = ? AND customer_id IS ?',
+            id,
+            customerId,
+          )
+        : null,
     locationChanged && target
       ? db.stmt(
-          'INSERT INTO item_locations (item_id, shelf_id, zone_id, side) VALUES (?, ?, ?, ?)',
+          `INSERT INTO item_locations (item_id, shelf_id, zone_id, side, customer_id)
+           VALUES (?, ?, ?, ?, ?)`,
           id,
           columns.shelf_id,
           columns.zone_id,
           columns.side,
+          customerId,
         )
       : null,
     fieldsChanged ? movementStatement(db, { item: next, user, action: 'update' }) : null,
     // Un simple changement de côté sur la même étagère n'est pas un mouvement.
     movedElsewhere
-      ? movementStatement(db, { item: next, user, action: 'move', from: current, to: target })
+      ? movementStatement(db, {
+          item: next,
+          user,
+          action: 'move',
+          from: current,
+          to: target ? { ...target, customer_name: customer?.name ?? '' } : null,
+        })
       : null,
   ]);
 
@@ -303,15 +378,25 @@ items.put('/:id/location', async (c) => {
   const target = await readLocation(db, payload);
   if (!target) throw badRequest('Choisissez une étagère ou une zone de destination.');
 
-  const current = item.locations[0] ?? null;
+  const customer = await readLocationCustomer(db, payload, target);
+  const customerId = customer?.id ?? null;
+
+  // Un article peut être rangé à plusieurs endroits à la fois : au stock global
+  // et réservé chez un ou plusieurs clients. On ne déplace donc que
+  // l'exemplaire du propriétaire visé — sinon déplacer celui du stock global
+  // effacerait au passage la réservation d'AOCCI.
+  const current = item.locations.find((row) => (row.customer_id ?? null) === customerId) ?? null;
 
   if (current?.code === target.code) {
     // Même étagère : seul le côté peut avoir changé. Pas un mouvement.
     if ((current.side ?? null) !== (target.side ?? null)) {
+      // `IS` et non `=` : avec un paramètre NULL, `=` ne rapproche jamais rien,
+      // et le côté du stock global ne serait pas mis à jour.
       await db.run(
-        'UPDATE item_locations SET side = ? WHERE item_id = ?',
+        'UPDATE item_locations SET side = ? WHERE item_id = ? AND customer_id IS ?',
         target.side ?? null,
         id,
+        customerId,
       );
       return c.json(await findItemById(db, id));
     }
@@ -321,16 +406,24 @@ items.put('/:id/location', async (c) => {
   const columns = locationColumns(target);
 
   await db.batch([
-    db.stmt('DELETE FROM item_locations WHERE item_id = ?', id),
+    db.stmt('DELETE FROM item_locations WHERE item_id = ? AND customer_id IS ?', id, customerId),
     db.stmt(
-      'INSERT INTO item_locations (item_id, shelf_id, zone_id, side) VALUES (?, ?, ?, ?)',
+      `INSERT INTO item_locations (item_id, shelf_id, zone_id, side, customer_id)
+       VALUES (?, ?, ?, ?, ?)`,
       id,
       columns.shelf_id,
       columns.zone_id,
       columns.side,
+      customerId,
     ),
     db.stmt('UPDATE items SET updated_at = ? WHERE id = ?', new Date().toISOString(), id),
-    movementStatement(db, { item, user, action: 'move', from: current, to: target }),
+    movementStatement(db, {
+      item,
+      user,
+      action: 'move',
+      from: current,
+      to: { ...target, customer_name: customer?.name ?? '' },
+    }),
   ]);
 
   return c.json(await findItemById(db, id));

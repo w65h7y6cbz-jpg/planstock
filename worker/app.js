@@ -4,6 +4,7 @@ import { accessGuard } from './lib/access.js';
 import { HttpError } from './lib/http.js';
 import { access } from './routes/access.js';
 import { backups } from './routes/backups.js';
+import { customers } from './routes/customers.js';
 import { demo } from './routes/demo.js';
 import { exports_ } from './routes/export.js';
 import { items } from './routes/items.js';
@@ -49,6 +50,7 @@ export function createApp() {
   app.route('/api/users', users);
   app.route('/api/sites', sites);
   app.route('/api/landmarks', landmarks);
+  app.route('/api/customers', customers);
   app.route('/api/racks', racks);
   app.route('/api/items', items);
   app.route('/api/movements', movements);

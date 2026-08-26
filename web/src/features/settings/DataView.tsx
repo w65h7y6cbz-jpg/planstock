@@ -30,6 +30,7 @@ const TABLE_LABELS: Record<string, string> = {
   racks: 'rayonnages et zones',
   shelves: 'étagères',
   landmarks: 'repères',
+  customers: 'sous-stocks',
   items: 'articles',
   item_locations: 'emplacements',
   movements: 'mouvements',
@@ -80,8 +81,14 @@ export function DataView({ site, currentUser, onDataReplaced, onRelaunchInventor
       sheet.addRow(headers);
       sheet.getRow(1).font = { bold: true };
       for (const row of rows) sheet.addRow(row);
-      sheet.columns = [18, 46, 10, 34, 16, 16, 16, 10].map((width) => ({ width }));
-      sheet.autoFilter = { from: 'A1', to: 'H1' };
+      // Une largeur par colonne d'en-tête, et le filtre automatique couvre
+      // jusqu'à la dernière : les deux se déduisent de `headers`, pour qu'une
+      // colonne ajoutée côté Worker n'en laisse aucune des deux en arrière.
+      sheet.columns = [18, 46, 10, 34, 16, 16, 20, 18, 10]
+        .slice(0, headers.length)
+        .map((width) => ({ width }));
+      const lastColumn = String.fromCharCode('A'.charCodeAt(0) + headers.length - 1);
+      sheet.autoFilter = { from: 'A1', to: `${lastColumn}1` };
 
       const buffer = await workbook.xlsx.writeBuffer();
       const url = URL.createObjectURL(

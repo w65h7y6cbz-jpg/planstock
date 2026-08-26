@@ -95,7 +95,13 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* Deux des « boutons » sont des liens de téléchargement : sans ces trois
+   dernières lignes, eux seuls arrivaient soulignés et en bleu, à côté de vrais
+   boutons qui ne le sont pas. */
 .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: var(--tap-target);
   padding: 0 var(--space-4);
   background: var(--bg);
@@ -104,6 +110,9 @@
   transition:
     background var(--transition),
     border-color var(--transition);
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .button:hover:not(:disabled) {

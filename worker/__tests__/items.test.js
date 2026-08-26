@@ -285,12 +285,13 @@ describe('GET /api/export', () => {
     const lines = response.text.replace(/^﻿/, '').trim().split('\r\n');
 
     expect(lines[0]).toBe(
-      'Référence;Désignation;Famille;Libellé famille;Type;Local;Emplacement;Côté',
+      'Référence;Désignation;Famille;Libellé famille;Type;Local;Emplacement;Réservé à;Côté',
     );
-    expect(lines).toContain('ARB123;Imprimante A3;;;Physique;Optimium;R01-E2;');
-    expect(lines).toContain('B39VLAT;Copieur B39;;;Physique;Optimium;Z02;');
+    // Colonne « Réservé à » vide : ces articles sont au stock global.
+    expect(lines).toContain('ARB123;Imprimante A3;;;Physique;Optimium;R01-E2;;');
+    expect(lines).toContain('B39VLAT;Copieur B39;;;Physique;Optimium;Z02;;');
     // Un service n'a ni local ni emplacement.
-    expect(lines).toContain('DEPITUC;Redevance;;;Service;;;');
+    expect(lines).toContain('DEPITUC;Redevance;;;Service;;;;');
   });
 
   it('exporte le côté d’étagère quand il est renseigné', async () => {
@@ -304,7 +305,7 @@ describe('GET /api/export', () => {
 
     const response = await api('/api/export/csv');
     expect(response.text).toContain(
-      `UK707E/L;Toner noir;;;Physique;Optimium;${rack.rack_code}-E1;Droite`,
+      `UK707E/L;Toner noir;;;Physique;Optimium;${rack.rack_code}-E1;;Droite`,
     );
   });
 
@@ -342,6 +343,7 @@ describe('GET /api/export', () => {
       'Type',
       'Local',
       'Emplacement',
+      'Réservé à',
       'Côté',
     ]);
     expect(response.body.rows).toHaveLength(20);
@@ -353,6 +355,7 @@ describe('GET /api/export', () => {
       'Physique',
       'Optimium',
       'R02-E1',
+      '',
       '',
     ]);
   });

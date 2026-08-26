@@ -18,6 +18,8 @@ const LOCATION_COLUMNS = `
   item_locations.shelf_id,
   item_locations.zone_id,
   item_locations.side,
+  item_locations.customer_id,
+  customers.name AS customer_name,
   shelves.shelf_index,
   racks.id     AS rack_id,
   racks.code   AS rack_code,
@@ -51,6 +53,9 @@ export function decorateLocation(row) {
     shelf_index: isShelf ? row.shelf_index : null,
     // Indication facultative, jamais dans le code d'emplacement.
     side: isShelf ? (row.side ?? null) : null,
+    // Vide = stock global du local. Renseigné = réservé à ce client.
+    customer_id: row.customer_id ?? null,
+    customer_name: row.customer_name ?? '',
     site_id: row.site_id ?? null,
     site_code: row.site_code ?? '',
     site_name: row.site_name ?? '',
@@ -59,8 +64,28 @@ export function decorateLocation(row) {
   };
 }
 
-/** Attache la liste `locations` à chaque article. */
-export async function attachLocations(db, items) {
+/**
+ * Restriction SQL sur le propriétaire d'un emplacement.
+ *
+ * Trois cas, et la distinction compte : `undefined` n'est pas `null`.
+ *   - `undefined` : tout, réservations comprises (écrans de gestion) ;
+ *   - `null`      : le stock global seul, c'est la recherche par défaut ;
+ *   - un nombre   : le sous-stock de ce client seul.
+ */
+function ownerClause(customerId) {
+  if (customerId === undefined) return '';
+  if (customerId === null) return ' AND item_locations.customer_id IS NULL';
+  return ' AND item_locations.customer_id = ?';
+}
+
+/** Paramètres de `ownerClause`, à insérer dans le même ordre. */
+const ownerParams = (customerId) => (typeof customerId === 'number' ? [customerId] : []);
+
+/**
+ * Attache la liste `locations` à chaque article.
+ * `customerId` suit la convention de `ownerClause` ci-dessus.
+ */
+export async function attachLocations(db, items, customerId = undefined) {
   if (items.length === 0) return items;
 
   const byId = new Map(items.map((item) => [item.id, { ...item, locations: [] }]));
@@ -73,9 +98,11 @@ export async function attachLocations(db, items) {
        LEFT JOIN shelves ON shelves.id = item_locations.shelf_id
        LEFT JOIN racks ON racks.id = COALESCE(shelves.rack_id, item_locations.zone_id)
        LEFT JOIN sites ON sites.id = racks.site_id
-      WHERE item_locations.item_id IN (${placeholders})
+       LEFT JOIN customers ON customers.id = item_locations.customer_id
+      WHERE item_locations.item_id IN (${placeholders})${ownerClause(customerId)}
       ORDER BY racks.kind, racks.code, shelves.shelf_index`,
     ...ids,
+    ...ownerParams(customerId),
   );
 
   for (const row of rows) {
@@ -95,32 +122,54 @@ export async function findItemById(db, id) {
  * Hors PlanStock n'en ont aucun : ils restent visibles depuis les deux locaux,
  * sinon une référence de service serait déclarée introuvable selon l'écran.
  */
-const SITE_FILTER = `(
+/**
+ * Avec un client, la recherche ne voit plus que son sous-stock : une référence
+ * rangée seulement au stock global ressort « inconnue » depuis chez AOCCI, et
+ * c'est voulu — sinon on irait piocher dans la mauvaise pile.
+ *
+ * La seconde branche, elle, ne se filtre jamais par client : un article Service
+ * ou Hors PlanStock n'a aucun emplacement, donc aucun propriétaire. Le filtrer
+ * le rendrait introuvable dès qu'un client est choisi, alors qu'un service
+ * reste un service quel que soit le stock regardé.
+ */
+function siteFilter(customerId) {
+  return `(
   EXISTS (
     SELECT 1 FROM item_locations
       LEFT JOIN shelves ON shelves.id = item_locations.shelf_id
       JOIN racks ON racks.id = COALESCE(shelves.rack_id, item_locations.zone_id)
-     WHERE item_locations.item_id = items.id AND racks.site_id = ?
+     WHERE item_locations.item_id = items.id AND racks.site_id = ?${ownerClause(customerId)}
   )
   OR NOT EXISTS (SELECT 1 FROM item_locations WHERE item_locations.item_id = items.id)
 )`;
+}
+
+/** Paramètres de `siteFilter`, dans l'ordre où la requête les attend. */
+const siteFilterParams = (siteId, customerId) => [siteId, ...ownerParams(customerId)];
 
 /**
  * Recherche exacte. Avec `siteId`, l'article n'est renvoyé que s'il est rangé
  * dans ce local (ou nulle part) : la recherche ne franchit pas les locaux.
+ * Avec `customerId`, elle ne regarde que le sous-stock de ce client.
  */
-export async function findItemByReference(db, reference, siteId = null) {
+export async function findItemByReference(db, reference, siteId = null, customerId = null) {
   const item = await db.get(
     `SELECT ${ITEM_COLUMNS} FROM items
-      WHERE items.reference = ?${siteId ? ` AND ${SITE_FILTER}` : ''}`,
-    ...(siteId ? [reference, siteId] : [reference]),
+      WHERE items.reference = ?${siteId ? ` AND ${siteFilter(customerId)}` : ''}`,
+    reference,
+    ...(siteId ? siteFilterParams(siteId, customerId) : []),
   );
-  return item ? (await attachLocations(db, [item]))[0] : null;
+  return item ? (await attachLocations(db, [item], customerId))[0] : null;
 }
 
+/**
+ * `customerId` suit la convention de `ownerClause` : laissé de côté, la liste
+ * ramène tout ; à `null` elle se limite au stock global ; à un nombre, au
+ * sous-stock de ce client.
+ */
 export async function listItems(
   db,
-  { search = null, designation = null, siteId = null, limit = null } = {},
+  { search = null, designation = null, siteId = null, customerId = undefined, limit = null } = {},
 ) {
   let sql = `SELECT ${ITEM_COLUMNS} FROM items`;
   const conditions = [];
@@ -136,8 +185,8 @@ export async function listItems(
     params.push(`%${escapeLike(designation)}%`);
   }
   if (siteId) {
-    conditions.push(SITE_FILTER);
-    params.push(siteId);
+    conditions.push(siteFilter(customerId));
+    params.push(...siteFilterParams(siteId, customerId));
   }
 
   if (conditions.length > 0) sql += ` WHERE ${conditions.join(' AND ')}`;
@@ -147,7 +196,7 @@ export async function listItems(
     params.push(limit);
   }
 
-  return attachLocations(db, await db.all(sql, ...params));
+  return attachLocations(db, await db.all(sql, ...params), customerId);
 }
 
 /** Échappe `%` et `_` pour une comparaison LIKE de préfixe. */
@@ -214,7 +263,9 @@ export function listSites(db) {
 const SHELF_ITEM_COLUMNS = `
   items.id AS item_id, items.reference, items.reference_display,
   items.designation, items.kind, items.family_code, items.family_label,
-  item_locations.side
+  item_locations.side,
+  item_locations.customer_id,
+  customers.name AS customer_name
 `;
 
 /** Étagères d'un rayonnage, de la plus haute (E1) à la plus basse, avec leurs articles. */
@@ -227,6 +278,7 @@ export async function listRackShelves(db, rackId) {
        FROM shelves
        LEFT JOIN item_locations ON item_locations.shelf_id = shelves.id
        LEFT JOIN items ON items.id = item_locations.item_id
+       LEFT JOIN customers ON customers.id = item_locations.customer_id
       WHERE shelves.rack_id = ?
       ORDER BY shelves.shelf_index, items.reference`,
     rackId,
@@ -256,6 +308,7 @@ export async function listZoneItems(db, zoneId) {
     `SELECT ${SHELF_ITEM_COLUMNS}
        FROM item_locations
        JOIN items ON items.id = item_locations.item_id
+       LEFT JOIN customers ON customers.id = item_locations.customer_id
       WHERE item_locations.zone_id = ?
       ORDER BY items.reference`,
     zoneId,
@@ -273,6 +326,9 @@ function toShelfItem(row) {
     family_code: row.family_code,
     family_label: row.family_label,
     side: row.side ?? null,
+    // Vide = stock global. Renseigné = cette ligne-ci est réservée.
+    customer_id: row.customer_id ?? null,
+    customer_name: row.customer_name ?? '',
   };
 }
 
@@ -337,6 +393,16 @@ export async function rackItemCount(db, rackId) {
  * Les codes d'emplacement sont figés en clair pour que l'historique reste
  * lisible après suppression de l'article ou du rayonnage.
  */
+/**
+ * Code d'emplacement tel qu'il s'écrit dans l'historique. Le sous-stock y
+ * figure : « R03-E1 » et « R03-E1 · AOCCI » sont deux rangements différents, et
+ * l'historique doit permettre de les distinguer des années plus tard.
+ */
+function historyCode(location) {
+  if (!location) return null;
+  return location.customer_name ? `${location.code} · ${location.customer_name}` : location.code;
+}
+
 export function movementStatement(db, { item, user, action, from = null, to = null }) {
   return db.stmt(
     `INSERT INTO movements (
@@ -349,8 +415,8 @@ export function movementStatement(db, { item, user, action, from = null, to = nu
     user.id,
     user.first_name,
     action,
-    from?.code ?? null,
-    to?.code ?? null,
+    historyCode(from),
+    historyCode(to),
     new Date().toISOString(),
   );
 }
@@ -371,7 +437,7 @@ export function movementStatementByReference(db, { reference, designation, user,
     user.id,
     user.first_name,
     action,
-    to?.code ?? null,
+    historyCode(to),
     new Date().toISOString(),
   );
 }

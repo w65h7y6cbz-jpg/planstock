@@ -9,6 +9,7 @@ import { SiteChooser } from './components/SiteChooser';
 import { Toasts } from './components/Toasts';
 import { TopBar, type MenuAction } from './components/TopBar';
 import { InventoryMode } from './features/inventory/InventoryMode';
+import { CustomersView } from './features/settings/CustomersView';
 import { DataView } from './features/settings/DataView';
 import { ItemsView } from './features/settings/ItemsView';
 import { MovementsView } from './features/settings/MovementsView';
@@ -17,6 +18,7 @@ import { SettingsPage } from './features/settings/SettingsPage';
 import { SiteView } from './features/settings/SiteView';
 import { UsersView } from './features/settings/UsersView';
 import { useCurrentUser } from './hooks/useCurrentUser';
+import { useCustomers } from './hooks/useCustomers';
 import { usePickList } from './hooks/usePickList';
 import { useRacks } from './hooks/useRacks';
 import { useSites } from './hooks/useSites';
@@ -51,6 +53,10 @@ const SETTINGS_TITLES: Record<
     'Rayonnages et zones',
     'Dessine le local : pose les meubles, fais-les glisser à leur place.',
   ],
+  stocks: [
+    'Stocks à part',
+    'Ceux des clients qui achètent à l’année, rangés au même endroit que le stock général.',
+  ],
   items: [
     'Articles',
     'Corriger une référence, changer un emplacement, supprimer une ligne.',
@@ -78,6 +84,7 @@ export function App() {
     reloadSites,
   } = useSites();
   const { users, currentUser, selectUser, reloadUsers } = useCurrentUser();
+  const { customers, reloadCustomers } = useCustomers(site?.id ?? null);
   const racksState = useRacks(site?.id ?? null);
   const pickList = usePickList();
   const { toasts, notify, dismiss } = useToasts();
@@ -224,11 +231,11 @@ export function App() {
   );
 
   const runSearch = useCallback(
-    async (query: string) => {
+    async (query: string, customerId: number | null = null) => {
       if (!site) return;
       setScreen({ name: 'result', outcome: { status: 'searching', query } });
       try {
-        const result = await api.items.search(query, site.id);
+        const result = await api.items.search(query, site.id, customerId);
         if (result.exact) {
           showItem(result.exact);
           return;
@@ -432,6 +439,8 @@ export function App() {
                 onDelete={racksState.removeRack}
                 onLandmarksChanged={reloadLandmarks}
               />
+            ) : screen.page === 'stocks' ? (
+              <CustomersView site={site} onChanged={reloadCustomers} />
             ) : screen.page === 'items' ? (
               <ItemsView
                 site={site}
@@ -468,9 +477,10 @@ export function App() {
               <SearchHome
                 ref={searchRef}
                 site={site}
+                customers={customers}
                 compact
-                onSubmit={(query) => void runSearch(query)}
-                onPick={showItem}
+                onSubmit={(query, customerId) => void runSearch(query, customerId)}
+                onPick={(item) => showItem(item)}
               />
             ) : null}
 
@@ -478,8 +488,9 @@ export function App() {
               <SearchHome
                 ref={searchRef}
                 site={site}
-                onSubmit={(query) => void runSearch(query)}
-                onPick={showItem}
+                customers={customers}
+                onSubmit={(query, customerId) => void runSearch(query, customerId)}
+                onPick={(item) => showItem(item)}
               />
             ) : (
               <ResultScreen

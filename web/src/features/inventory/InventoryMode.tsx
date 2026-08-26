@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, type RackPayload } from '../../api';
 import { Logo } from '../../components/Logo';
 import { RackElevation, ZoneDrawing } from '../../components/RackElevation';
+import { useCustomers } from '../../hooks/useCustomers';
 import { SIDES, SIDE_SHORT, aisleColor } from '../../lib/labels';
 import type { Rack, Shelf, Side, Site, User } from '../../types';
 import { RackWizard } from './RackWizard';
@@ -58,6 +59,11 @@ export function InventoryMode({
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [shelfIndex, setShelfIndex] = useState<number | null>(null);
   const [side, setSide] = useState<Side | ''>('');
+  // Ici le stock **reste** choisi d'une référence à l'autre : on vide un carton
+  // entier qui appartient au même stock. C'est l'inverse de la recherche, où
+  // chaque référence repart du stock général.
+  const [customerId, setCustomerId] = useState<number | null>(null);
+  const { customers } = useCustomers(site.id);
   const [reference, setReference] = useState('');
   const [designation, setDesignation] = useState('');
   const [saved, setSaved] = useState<SavedEntry[]>([]);
@@ -112,6 +118,7 @@ export function InventoryMode({
         shelf_id: rack.is_zone ? null : currentShelf!.id,
         zone_id: rack.is_zone ? rack.id : null,
         side: rack.is_zone || !side ? null : side,
+        customer_id: customerId,
       });
 
       setSaved((current) => [
@@ -132,7 +139,17 @@ export function InventoryMode({
       setBusy(false);
       referenceRef.current?.focus();
     }
-  }, [currentUser, reference, designation, rack, currentShelf, side, targetCode, onItemSaved]);
+  }, [
+    currentUser,
+    reference,
+    designation,
+    rack,
+    currentShelf,
+    side,
+    customerId,
+    targetCode,
+    onItemSaved,
+  ]);
 
   const header = (
     <header className={styles.header}>
@@ -346,6 +363,31 @@ export function InventoryMode({
                   </div>
                 </div>
               )}
+
+              {customers.length > 0 ? (
+                <div className={styles.field}>
+                  Stock
+                  <select
+                    className={styles.stockSelect}
+                    value={customerId ?? ''}
+                    onChange={(event) =>
+                      setCustomerId(event.target.value === '' ? null : Number(event.target.value))
+                    }
+                  >
+                    <option value="">Stock général</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className={styles.optional}>
+                    {customerId
+                      ? 'Tout ce qui suit part dans ce stock, jusqu’à ce que tu en changes.'
+                      : 'Le stock de tout le monde.'}
+                  </span>
+                </div>
+              ) : null}
 
               <button
                 type="button"

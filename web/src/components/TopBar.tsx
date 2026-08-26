@@ -12,6 +12,7 @@ import styles from './TopBar.module.css';
 
 export type MenuAction =
   | 'racks'
+  | 'stocks'
   | 'items'
   | 'users'
   | 'movements'
@@ -21,6 +22,7 @@ export type MenuAction =
 
 const MENU: { action: MenuAction; label: string; hint: string }[] = [
   { action: 'racks', label: 'Rayonnages et zones', hint: 'Créer, déplacer, renommer' },
+  { action: 'stocks', label: 'Stocks à part', hint: 'Ceux des clients à l’année' },
   { action: 'items', label: 'Articles', hint: 'Ajouter, corriger, ranger' },
   { action: 'users', label: 'Équipe', hint: 'Les prénoms de l’atelier' },
   { action: 'movements', label: 'Mouvements', hint: 'Qui a rangé quoi, quand' },

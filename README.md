@@ -16,7 +16,8 @@ physiquement l'article ». Aucune quantité, aucun prix, aucune commande.
 
 ## Ouvrir PlanStock
 
-À l'adresse du Worker, depuis n'importe quel poste du magasin.
+**<https://planstock.lifepilot.win>**, depuis n'importe quel poste du magasin.
+C'est la seule adresse : PlanStock n'a pas de nom de repli en `.workers.dev`.
 
 1. **Choisis le local** — Optimium ou Sharp Center. Le choix est mémorisé sur le
    poste ; la couleur de l'application suit le local.
@@ -26,8 +27,10 @@ physiquement l'article ». Aucune quantité, aucun prix, aucune commande.
    l'emplacement s'affiche en énorme, le rayonnage est dessiné à côté avec
    l'étagère surlignée, et la référence rejoint la liste de préparation.
 
-La recherche ne connaît que les références d'articles. Le numéro du bon (NPL…)
-ne sert pas à chercher : il se saisit dans le tiroir, pour nommer la liste.
+**On ne tape jamais qu'une référence dans PlanStock.** Il n'y a pas d'autre
+champ de saisie, pas de numéro de bon, pas de nom de préparation : une
+référence, un emplacement. La liste de préparation se remplit toute seule au
+fil des références tapées.
 
 Tout le flux se fait au clavier : taper, **Entrée**, **↑ ↓** pour choisir dans
 les suggestions, **Suivante** pour la référence suivante, **Échap** pour fermer
@@ -36,8 +39,12 @@ ce qui est ouvert, **F2** (ou **P** hors saisie) pour le plan du local.
 ## Qui peut entrer
 
 PlanStock n'a **aucun compte ni mot de passe** : le prénom sert à tracer qui
-range quoi, pas à ouvrir la porte. En ligne, deux verrous la remplacent, tous
-deux facultatifs et réglables sans redéployer :
+range quoi, pas à ouvrir la porte.
+
+**Aujourd'hui, l'accès est libre : qui a l'adresse entre.** C'est un choix
+assumé — l'adresse n'est donnée à personne en dehors de l'équipe. Deux verrous
+existent si l'on change d'avis un jour ; ils sont facultatifs, vides par défaut,
+et s'activent sans redéployer :
 
 | Réglage | Rôle |
 | --- | --- |
@@ -49,12 +56,9 @@ npx wrangler secret put PLANSTOCK_ALLOWED_IPS
 npx wrangler secret put PLANSTOCK_ACCESS_CODE
 ```
 
-**Tant que les deux sont vides, l'accès est libre** : n'importe qui ayant
-l'adresse peut consulter et modifier le stock. C'est l'état du premier
-déploiement, à ne pas laisser durer.
-
-L'écran de refus affiche l'adresse IP vue par Cloudflare : c'est celle à
-recopier dans `PLANSTOCK_ALLOWED_IPS`.
+Tant que les deux sont vides, aucun filtre ne s'applique et personne n'a rien à
+saisir. Le jour où l'on en veut un, l'écran de refus affiche l'adresse IP vue
+par Cloudflare : c'est celle à recopier dans `PLANSTOCK_ALLOWED_IPS`.
 
 ## Emplacements
 
@@ -84,9 +88,9 @@ elle n'entre pas dans le code, ne conditionne rien et peut rester vide.
 | **Accueil** | le grand champ de recherche au centre, rien d'autre |
 | **Résultat** | le code en énorme, le rayonnage dessiné avec l'étagère surlignée, l'allée et le nom du meuble |
 | **Plan du local** | plein écran (bouton ou **F2**) ; vue de dessus avec un peu d'épaisseur, cadrage automatique sur la cible, parcours numéroté pendant une préparation |
-| **Tiroir de préparation** | à droite, s'ouvre au premier ajout : n° de bon, lignes cochables |
+| **Tiroir de préparation** | à droite, s'ouvre au premier ajout : lignes cochables, rien à saisir |
 | **Inventaire initial** | une question à la fois : le meuble, puis l'étagère, puis les références |
-| **Réglages** (⚙) | Rayonnages et zones · Articles · Équipe · Mouvements · Sauvegardes · Ce local |
+| **Réglages** (⚙) | Rayonnages et zones · Stocks à part · Articles · Équipe · Mouvements · Sauvegardes · Ce local |
 
 Le plan est **fixe** : il n'y a ni molette ni glisser du fond, rien à recadrer.
 Cliquer un meuble l'ouvre dans un panneau à droite, où l'on déplie une étagère
@@ -96,6 +100,32 @@ Le mode **Inventaire initial** démarre tout seul quand la base est vide, et se
 relance depuis Réglages → Sauvegardes. Une fois l'étagère choisie, chaque
 **Entrée** range une référence de plus au même endroit, pour vider un carton
 d'affilée.
+
+## Stocks à part
+
+Certains clients achètent à l'année : le magasin garde pour eux des exemplaires
+des mêmes références que le stock général. Ce ne sont pas d'autres articles —
+c'est **la même référence, rangée au même endroit, mais qui ne lui appartient
+pas**. Deux boîtes d'UK707E/L peuvent voisiner sur `R03-E1`, l'une au stock
+général, l'autre réservée à AOCCI.
+
+Les stocks à part se créent dans **Réglages → Stocks à part**. Chaque nom ajouté
+apparaît ensuite dans le menu **« Chercher dans »**, au-dessus du champ de
+recherche.
+
+Ce menu **revient au stock général après chaque référence**, et c'est
+volontaire : une commande mélange couramment des lignes réservées et des lignes
+ordinaires. Un mode qui resterait allumé ferait chercher au mauvais endroit sans
+que personne s'en aperçoive.
+
+Une référence rangée seulement au stock général ressort « inconnue » quand on la
+cherche chez AOCCI — c'est ce qui empêche de partir avec la pile du voisin. Les
+articles Service et Hors PlanStock échappent à ce filtre : ils n'ont aucun
+emplacement, donc aucun propriétaire.
+
+Un stock à part qui contient encore des références ne se supprime pas. L'export
+gagne une colonne « Réservé à », et l'historique note le nom dans le code
+(`R03-E1 · AOCCI`).
 
 ## Les deux locaux
 
@@ -168,7 +198,7 @@ planstock/
 ```bat
 npm install && npm --prefix web install
 
-npm test                     :: 85 tests d'API + 29 tests d'interface
+npm test                     :: 102 tests d'API + 29 tests d'interface
 npm run build                :: compile l'interface dans web/dist
 npm run dev                  :: PlanStock complet en local, sur une base D1 locale
 npm --prefix web run dev     :: interface seule, rechargement à chaud
@@ -201,6 +231,24 @@ npx wrangler login
 npm run deploy
 ```
 
+### L'adresse
+
+`planstock.lifepilot.win` est déclaré dans `wrangler.toml` comme **domaine
+personnalisé** : le Worker est l'origine, il n'y a pas de serveur derrière lui.
+Le premier déploiement crée l'enregistrement DNS et le certificat tout seuls —
+rien à préparer dans l'onglet DNS.
+
+Deux conditions, sinon le déploiement s'arrête avec une erreur claire plutôt que
+de mettre quoi que ce soit en ligne :
+
+- `lifepilot.win` doit être une **zone active** du même compte Cloudflare ;
+- `planstock.lifepilot.win` ne doit **pas** avoir déjà un enregistrement CNAME.
+
+**L'apex `lifepilot.win` sert une autre application**, LifePilot, portée par les
+Workers `lifepilot` et `lifepilot-preview` du même compte. PlanStock ne prend
+que son sous-domaine et ne touche à rien d'autre. Pour en changer, une ligne
+dans `wrangler.toml` suffit — mais jamais l'apex, qui débrancherait LifePilot.
+
 ## API REST
 
 Toutes les routes sont sous `/api`. Les modifications exigent un technicien
@@ -214,11 +262,12 @@ identifié : `user_id` dans le corps de la requête, la query string ou l'en-tê
 | `GET` `POST` `PATCH` | `/api/users` | liste, ajout et désactivation des prénoms |
 | `GET` `PATCH` | `/api/sites` | les deux locaux : nom, couleur, logo, taille du plan |
 | `GET` `POST` `PATCH` `DELETE` | `/api/landmarks?site_id=` | repères du plan : porte d'entrée, établi |
+| `GET` `POST` `PATCH` `DELETE` | `/api/customers?site_id=` | stocks à part d'un local ; la suppression est refusée tant qu'il en reste des références |
 | `GET` `POST` `PATCH` `DELETE` | `/api/racks?site_id=` | rayonnages et zones d'un local ; les étagères sont générées automatiquement |
 | `GET` | `/api/racks/:id/shelves` | étagères d'un rayonnage avec leur contenu |
-| `GET` | `/api/items` · `/api/items/search?q=&site_id=` | recherche exacte, puis par préfixe, puis par désignation |
+| `GET` | `/api/items` · `/api/items/search?q=&site_id=&customer_id=` | recherche exacte, puis par préfixe, puis par désignation ; sans `customer_id`, le stock général seul |
 | `POST` `PATCH` `DELETE` | `/api/items` | création, modification, suppression |
-| `PUT` | `/api/items/:id/location` | déplacement vers une étagère (`shelf_id`, `side` facultatif) ou une zone (`zone_id`) |
+| `PUT` | `/api/items/:id/location` | déplacement vers une étagère (`shelf_id`, `side` facultatif) ou une zone (`zone_id`) ; `customer_id` range dans un stock à part sans toucher aux autres |
 | `GET` | `/api/movements?reference=` | historique filtrable |
 | `GET` `PUT` | `/api/settings` | réglages globaux |
 | `GET` | `/api/export/csv?site_id=` · `/api/export/rows?site_id=` | export des articles (famille, local, côté) |

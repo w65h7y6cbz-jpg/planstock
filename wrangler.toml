@@ -9,6 +9,22 @@ main = "worker/index.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Pas de seconde adresse en .workers.dev : une seule porte d'entrée à retenir,
+# et rien qui traîne sous un nom devinable. (En TOML, cette clé doit rester
+# au-dessus de la première table : après `[[routes]]`, elle appartiendrait à la
+# route et non au Worker.)
+workers_dev = false
+
+# L'adresse de PlanStock. « Domaine personnalisé » et non « route » : le Worker
+# est l'origine, il n'y a pas de serveur derrière. Cloudflare crée
+# l'enregistrement DNS et le certificat tout seul au premier déploiement.
+#
+# Un sous-domaine, jamais l'apex : lifepilot.win sert déjà l'application
+# LifePilot. PlanStock ne prend que ce nom-ci et ne touche à rien d'autre.
+[[routes]]
+pattern = "planstock.lifepilot.win"
+custom_domain = true
+
 # L'interface compilée est servie directement par le réseau Cloudflare, sans
 # passer par le Worker. `run_worker_first` réserve /api au Worker, sinon le
 # repli « application d'une seule page » renverrait index.html pour l'API.
