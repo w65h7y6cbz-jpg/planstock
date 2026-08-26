@@ -10,6 +10,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
+import { familyTone } from '../lib/familyTone';
 import type { LocationState } from '../lib/picklist';
 import type { Rack, RackDetail, Shelf, ShelfItem } from '../types';
 import styles from './RackView.module.css';
@@ -67,8 +68,10 @@ function Pellet({
     disabled: !draggable,
   });
 
+  const tone = familyTone(item.family_code);
   const classes = [
     styles.pellet,
+    tone >= 0 ? styles[`tone${tone}`] : '',
     state === 'lit' ? styles.pelletLit : '',
     state === 'done' ? styles.pelletDone : '',
     highlighted ? styles.pelletHighlighted : '',

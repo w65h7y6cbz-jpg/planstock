@@ -21,11 +21,44 @@
   cursor: grabbing;
 }
 
+/* ---- Sol du local ---- */
+
+/* Mur du local. Discret : la vue est souvent cadrée sur les emplacements, et
+   n'en montre alors qu'un morceau. */
 .room {
-  fill: var(--bg-elevated);
-  stroke: var(--border-strong);
-  stroke-width: 0.4;
+  fill: var(--plan-floor);
+  stroke: var(--border);
+  stroke-width: 0.25;
 }
+
+.floor {
+  stroke: none;
+}
+
+.floorLine {
+  stroke: var(--plan-grid);
+  stroke-width: 0.12;
+}
+
+/* ---- Allées ---- */
+
+.lane {
+  fill: var(--plan-lane);
+  stroke: var(--plan-lane-border);
+  stroke-width: 0.2;
+  stroke-dasharray: 2 1.6;
+}
+
+.laneLabel {
+  fill: var(--text-faint);
+  font-size: 1.9px;
+  font-weight: 600;
+  letter-spacing: 0.08px;
+  text-transform: uppercase;
+  dominant-baseline: middle;
+}
+
+/* ---- Rayonnages et zones ---- */
 
 .rack {
   cursor: pointer;
@@ -39,13 +72,23 @@
   cursor: grabbing;
 }
 
+.rackShadow {
+  fill: var(--plan-shadow);
+}
+
 .rackBody {
-  fill: var(--bg);
-  stroke: var(--border-strong);
-  stroke-width: 0.35;
+  fill: var(--plan-rack);
+  stroke: var(--plan-rack-border);
+  stroke-width: 0.3;
   transition:
     fill var(--transition),
     stroke var(--transition);
+}
+
+/* Liseré de tête : repère l'avant du rayonnage. */
+.rackEdge {
+  fill: var(--plan-rack-edge);
+  transition: fill var(--transition);
 }
 
 .rack:hover .rackBody {
@@ -60,27 +103,61 @@
 
 .rack:focus-visible .rackBody {
   stroke: var(--accent);
-  stroke-width: 0.8;
+  stroke-width: 0.7;
   stroke-dasharray: 1.6 0.9;
 }
 
 .rackSelected .rackBody {
   stroke: var(--accent);
-  stroke-width: 0.7;
+  stroke-width: 0.6;
 }
 
-/* Rayonnage contenant au moins un article de la liste de préparation. */
+/* Une zone (pile au sol, palette, cage, table) : hachurée, contour tireté. */
+.zone .rackBody {
+  fill: var(--plan-zone);
+  stroke: var(--plan-zone-border);
+  stroke-dasharray: 2 1.4;
+}
+
+.zoneHatch {
+  stroke: none;
+}
+
+.hatchLine {
+  stroke: var(--plan-zone-hatch);
+  stroke-width: 0.55;
+}
+
+/* Emplacement contenant un article restant à prélever. */
 .rackLit .rackBody {
   fill: var(--accent-soft);
   stroke: var(--accent);
   stroke-width: 0.7;
 }
 
+.rackLit .rackEdge {
+  fill: var(--accent);
+}
+
+/* Emplacement dont tous les articles de la liste sont cochés. */
+.rackDone .rackBody {
+  fill: var(--success-soft);
+  stroke: var(--success);
+  stroke-width: 0.6;
+}
+
+.rackDone .rackEdge {
+  fill: var(--success);
+}
+
+/* ---- Textes portés par un emplacement ---- */
+
 .rackCode {
   fill: var(--text);
   font-family: var(--font-mono);
-  font-size: 3px;
-  font-weight: 600;
+  font-size: 3.1px;
+  font-weight: 700;
+  letter-spacing: -0.03px;
   dominant-baseline: middle;
 }
 
@@ -90,30 +167,30 @@
   dominant-baseline: middle;
 }
 
-.rackAisle {
+.rackCount {
   fill: var(--text-faint);
   font-size: 1.8px;
-  letter-spacing: 0.05px;
   text-anchor: end;
   dominant-baseline: alphabetic;
 }
 
-/* Une zone (pile au sol, palette, cage, table) : contour tireté, pas d'étagère. */
-.zone .rackBody {
-  fill: var(--bg-sunken);
-  stroke-dasharray: 1.6 1.1;
+/* ---- Jauge de remplissage ---- */
+
+.gaugeTrack {
+  fill: var(--plan-gauge-track);
 }
 
-.zone .rackCode {
+.gaugeFill {
+  fill: var(--plan-gauge-fill);
+  transition: width var(--transition);
+}
+
+.rackLit .gaugeFill,
+.rackDone .gaugeFill {
   fill: var(--text-muted);
 }
 
-/* Rayonnage dont tous les articles de la liste sont cochés. */
-.rackDone .rackBody {
-  fill: var(--success-soft);
-  stroke: var(--success);
-  stroke-width: 0.7;
-}
+/* ---- Badge du nombre d'articles à préparer ---- */
 
 .badge {
   fill: var(--accent);
@@ -125,7 +202,7 @@
 
 .badgeText {
   fill: var(--accent-contrast);
-  font-size: 2.4px;
+  font-size: 2.5px;
   font-weight: 700;
   text-anchor: middle;
   dominant-baseline: central;
@@ -137,6 +214,8 @@
   stroke-width: 0.3;
   cursor: nwse-resize;
 }
+
+/* ---- Habillage ---- */
 
 .empty {
   display: flex;

@@ -257,6 +257,9 @@
   box-shadow: var(--shadow-md);
 }
 
+/* Une étagère peut porter quinze pastilles : le bouton d'actions reste
+   effacé jusqu'au survol, sinon il ajoute autant de « ⋯ » que de références.
+   Il reste atteignable au clavier, où le focus le fait réapparaître. */
 .pelletMenuButton {
   display: inline-flex;
   align-items: center;
@@ -270,6 +273,13 @@
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.pelletWrapper:hover .pelletMenuButton,
+.pelletMenuButton:focus-visible {
+  opacity: 1;
 }
 
 .pelletMenuButton:hover {
@@ -423,4 +433,28 @@
 .zoneEmpty {
   margin: auto;
   color: var(--text-faint);
+}
+
+/* ---- Teintes de famille ----
+   Deux articles de la même famille Sage portent la même couleur : dans une
+   étagère chargée, les toners se distinguent des imprimantes d'un coup d'œil.
+   La bordure porte la couleur, le fond reste calme : la référence prime. */
+
+.tone0 { border-color: var(--tone-0); box-shadow: inset 3px 0 0 var(--tone-0); }
+.tone1 { border-color: var(--tone-1); box-shadow: inset 3px 0 0 var(--tone-1); }
+.tone2 { border-color: var(--tone-2); box-shadow: inset 3px 0 0 var(--tone-2); }
+.tone3 { border-color: var(--tone-3); box-shadow: inset 3px 0 0 var(--tone-3); }
+.tone4 { border-color: var(--tone-4); box-shadow: inset 3px 0 0 var(--tone-4); }
+.tone5 { border-color: var(--tone-5); box-shadow: inset 3px 0 0 var(--tone-5); }
+.tone6 { border-color: var(--tone-6); box-shadow: inset 3px 0 0 var(--tone-6); }
+.tone7 { border-color: var(--tone-7); box-shadow: inset 3px 0 0 var(--tone-7); }
+
+.pellet[class*='tone'] {
+  padding-left: calc(var(--space-2) + 4px);
+}
+
+/* Les états de la liste de préparation priment sur la teinte de famille. */
+.pelletHighlighted,
+.pelletOverlay {
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }

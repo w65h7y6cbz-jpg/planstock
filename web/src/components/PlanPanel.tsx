@@ -163,6 +163,7 @@ export function PlanPanel({
           planHeight={planHeight}
           selectedRackId={openRackId}
           highlight={highlight}
+          fitToContent
           onSelectRack={(rack) => {
             // Une zone peut être choisie directement depuis la vue de dessus.
             if (rack.is_zone && selection?.onSelectZone) selection.onSelectZone(rack);

@@ -48,6 +48,31 @@
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 8%);
   --shadow-md: 0 4px 16px rgb(0 0 0 / 10%);
+
+  /* Plan du local : sol, allées, meubles. */
+  --plan-floor: #ffffff;
+  --plan-grid: #e6e6ec;
+  --plan-lane: #f0f2f7;
+  --plan-lane-border: #d5d9e3;
+  --plan-shadow: rgb(15 23 42 / 10%);
+  --plan-rack: #e9edf5;
+  --plan-rack-border: #b6bfd0;
+  --plan-rack-edge: #8d99b0;
+  --plan-zone: #f7f4ee;
+  --plan-zone-border: #c8bda6;
+  --plan-zone-hatch: #e0d6c2;
+  --plan-gauge-track: #d8dde7;
+  --plan-gauge-fill: #8d99b0;
+
+  /* Teintes de famille des pastilles : lisibles côte à côte, jamais criardes. */
+  --tone-0: #2f6fb8;
+  --tone-1: #1f8a70;
+  --tone-2: #b5651d;
+  --tone-3: #7a5cc0;
+  --tone-4: #b03a5b;
+  --tone-5: #4a7a1f;
+  --tone-6: #0f7f95;
+  --tone-7: #8a6d12;
 }
 
 [data-theme='dark'] {
@@ -72,6 +97,31 @@
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-md: 0 4px 16px rgb(0 0 0 / 45%);
+
+  /* Plan du local : sol, allées, meubles. */
+  --plan-floor: #191920;
+  --plan-grid: #26262f;
+  --plan-lane: #1f2029;
+  --plan-lane-border: #33343f;
+  --plan-shadow: rgb(0 0 0 / 45%);
+  --plan-rack: #2c2f3a;
+  --plan-rack-border: #474c5c;
+  --plan-rack-edge: #6f7789;
+  --plan-zone: #2a2822;
+  --plan-zone-border: #4d4737;
+  --plan-zone-hatch: #3b372c;
+  --plan-gauge-track: #3a3e4a;
+  --plan-gauge-fill: #7c8399;
+
+  /* Teintes de famille des pastilles : lisibles côte à côte, jamais criardes. */
+  --tone-0: #6ba6f0;
+  --tone-1: #4fc4a4;
+  --tone-2: #e0954f;
+  --tone-3: #a992ee;
+  --tone-4: #ef7f9c;
+  --tone-5: #8fc45a;
+  --tone-6: #4fb9cf;
+  --tone-7: #d6b445;
 }
 
 *,
