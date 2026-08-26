@@ -1,0 +1,19 @@
+{
+  "name": "planstock",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plan interactif du stock par référence (application locale SAV)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "npm --prefix web install",
+    "build": "npm --prefix web run build",
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test": "npm run test:server && npm run test:web",
+    "test:server": "echo \"(tests serveur — étape 2)\"",
+    "test:web": "echo \"(tests front — étape 5)\""
+  }
+}
