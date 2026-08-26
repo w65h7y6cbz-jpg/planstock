@@ -1,18 +1,28 @@
+/* `clip` et non `hidden` : `hidden` coupe le débordement mais laisse une zone
+   défilable invisible, que le navigateur fait glisser tout seul dès qu'il veut
+   révéler un élément qui s'y trouve. Le tiroir fermé étant garé juste à droite
+   de l'écran, la coque entière — barre du haut comprise — partait de 420 px
+   vers la gauche et n'en revenait jamais. `clip` ne crée aucune zone
+   défilable : la coque ne peut plus bouger. */
 .app {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  overflow: clip;
 }
 
 /* Zone sous la barre du haut : c'est elle qui accueille le tiroir, pour que la
-   barre reste cliquable quand la liste de préparation est ouverte. */
+   barre reste cliquable quand la liste de préparation est ouverte. C'est donc
+   ici que le tiroir fermé déborde, et ici qu'on le coupe. */
 .body {
   position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+  overflow: clip;
   transition: padding-right var(--transition-slow);
 }
 
