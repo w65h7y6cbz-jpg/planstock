@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import type { RackHighlight } from '../lib/picklist';
 import type { Rack } from '../types';
 import styles from './TopView.module.css';
 
@@ -14,8 +15,8 @@ interface TopViewProps {
   planWidth?: number;
   planHeight?: number;
   selectedRackId?: number | null;
-  /** Rayonnages « allumés » : identifiant → nombre d'articles à préparer. */
-  highlight?: Map<number, number>;
+  /** Rayonnages concernés par la liste : identifiant → articles à prendre / cochés. */
+  highlight?: Map<number, RackHighlight>;
   onSelectRack?: (rack: Rack) => void;
   /** Autorise le déplacement et le redimensionnement des rectangles. */
   editable?: boolean;
@@ -176,7 +177,10 @@ export function TopView({
 
         {racks.map((rack) => {
           const geometry = geometryOf(rack);
-          const litCount = highlight?.get(rack.id) ?? 0;
+          const marks = highlight?.get(rack.id);
+          const pending = marks?.pending ?? 0;
+          const done = marks?.done ?? 0;
+          const badgeCount = pending > 0 ? pending : done;
           const centerX = geometry.x + geometry.width / 2;
           const centerY = geometry.y + geometry.height / 2;
 
@@ -185,7 +189,8 @@ export function TopView({
             editable ? styles.rackEditable : '',
             drag?.rackId === rack.id ? styles.rackDragging : '',
             selectedRackId === rack.id ? styles.rackSelected : '',
-            litCount > 0 ? styles.rackLit : '',
+            pending > 0 ? styles.rackLit : '',
+            pending === 0 && done > 0 ? styles.rackDone : '',
           ]
             .filter(Boolean)
             .join(' ');
@@ -198,8 +203,8 @@ export function TopView({
               tabIndex={0}
               role="button"
               aria-label={`${rack.rack_code} ${rack.label || 'sans libellé'}${
-                litCount > 0 ? `, ${litCount} article(s) à préparer` : ''
-              }`}
+                pending > 0 ? `, ${pending} article(s) à préparer` : ''
+              }${pending === 0 && done > 0 ? `, ${done} article(s) validé(s)` : ''}`}
               onKeyDown={(event) => onKeyDown(event, rack)}
               onPointerDown={(event) => startDrag(event, rack, 'move')}
               onPointerUp={endDrag}
@@ -248,10 +253,10 @@ export function TopView({
                 ) : null}
               </g>
 
-              {litCount > 0 ? (
+              {badgeCount > 0 ? (
                 <>
                   <circle
-                    className={styles.badge}
+                    className={`${styles.badge} ${pending === 0 ? styles.badgeDone : ''}`}
                     cx={geometry.x + geometry.width - 2.4}
                     cy={geometry.y + 2.4}
                     r={1.9}
@@ -261,7 +266,7 @@ export function TopView({
                     x={geometry.x + geometry.width - 2.4}
                     y={geometry.y + 2.4}
                   >
-                    {litCount}
+                    {badgeCount}
                   </text>
                 </>
               ) : null}

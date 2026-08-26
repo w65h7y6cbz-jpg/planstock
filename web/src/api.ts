@@ -53,6 +53,8 @@ export interface ItemPayload {
   reference: string;
   designation?: string;
   kind?: ItemKind;
+  family_code?: string | null;
+  family_label?: string | null;
   slot_id?: number | null;
 }
 

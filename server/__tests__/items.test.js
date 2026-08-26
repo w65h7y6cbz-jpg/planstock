@@ -29,6 +29,24 @@ describe('POST /api/items', () => {
     expect(response.body.locations[0].code).toBe('R01-E2-C4');
   });
 
+  it('accepte une famille Sage facultative et la conserve telle quelle', async () => {
+    const response = await postItem({
+      reference: 'ARB123',
+      designation: 'Imprimante A3',
+      family_code: '0310',
+      family_label: 'IMPRIMANTE LASER N/B TGC22',
+      slot_id: slotIdOf(rack, 1, 1),
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.family_code).toBe('0310');
+    expect(response.body.family_label).toBe('IMPRIMANTE LASER N/B TGC22');
+
+    const sansFamille = await postItem({ reference: 'B39VLAT', slot_id: slotIdOf(rack, 1, 2) });
+    expect(sansFamille.body.family_code).toBeNull();
+    expect(sansFamille.body.family_label).toBeNull();
+  });
+
   it('conserve la référence telle que saisie et la normalise pour la recherche', async () => {
     const response = await postItem({
       reference: 'UK707E/L',
@@ -233,9 +251,25 @@ describe('GET /api/export', () => {
     expect(response.status).toBe(200);
 
     const lines = response.text.replace(/^﻿/, '').trim().split('\r\n');
-    expect(lines[0]).toBe('Référence;Désignation;Type;Emplacement');
-    expect(lines).toContain('ARB123;Imprimante A3;Physique;R01-E2-C4');
-    expect(lines).toContain('DEPITUC;Redevance;Service;');
+    expect(lines[0]).toBe('Référence;Désignation;Famille;Libellé famille;Type;Emplacement');
+    expect(lines).toContain('ARB123;Imprimante A3;;;Physique;R01-E2-C4');
+    expect(lines).toContain('DEPITUC;Redevance;;;Service;');
+  });
+
+  it('exporte le code et le libellé de famille quand ils sont connus', async () => {
+    await postItem({
+      reference: 'ARB123',
+      designation: 'Imprimante A3',
+      family_code: '0310',
+      family_label: 'IMPRIMANTE LASER N/B TGC22',
+      slot_id: slotIdOf(rack, 2, 4),
+    });
+
+    const response = await request(context.app).get('/api/export/csv');
+    const lines = response.text.replace(/^﻿/, '').trim().split('\r\n');
+    expect(lines).toContain(
+      'ARB123;Imprimante A3;0310;IMPRIMANTE LASER N/B TGC22;Physique;R01-E2-C4',
+    );
   });
 
   it('exporte 20 articles en xlsx : une ligne d’en-têtes + 20 lignes', async () => {
@@ -264,12 +298,16 @@ describe('GET /api/export', () => {
     expect(sheet.getRow(1).values.slice(1)).toEqual([
       'Référence',
       'Désignation',
+      'Famille',
+      'Libellé famille',
       'Type',
       'Emplacement',
     ]);
     expect(sheet.getRow(2).values.slice(1)).toEqual([
       'REF001',
       'Article 1',
+      '',
+      '',
       'Physique',
       'R02-E1-C1',
     ]);

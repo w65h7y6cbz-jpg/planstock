@@ -3,7 +3,7 @@ import { conflict, notFound } from './http.js';
 
 const ITEM_COLUMNS = `
   items.id, items.reference, items.reference_display, items.designation,
-  items.kind, items.created_at, items.updated_at
+  items.kind, items.family_code, items.family_label, items.created_at, items.updated_at
 `;
 
 const LOCATION_QUERY = `
@@ -107,7 +107,7 @@ export function listRackSlots(db, rackId) {
     .prepare(
       `SELECT slots.id, slots.shelf_index, slots.slot_index,
               items.id AS item_id, items.reference, items.reference_display,
-              items.designation, items.kind
+              items.designation, items.kind, items.family_code, items.family_label
          FROM slots
          LEFT JOIN item_locations ON item_locations.slot_id = slots.id
          LEFT JOIN items ON items.id = item_locations.item_id
@@ -137,6 +137,8 @@ export function listRackSlots(db, rackId) {
         reference_display: row.reference_display,
         designation: row.designation,
         kind: row.kind,
+        family_code: row.family_code,
+        family_label: row.family_label,
       });
     }
   }

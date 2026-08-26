@@ -1,27 +1,32 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { Modal } from './components/Modal';
+import { PickList } from './components/PickList';
+import { PlanPanel, type PlanFocus } from './components/PlanPanel';
+import { SearchBox } from './components/SearchBox';
 import { TopBar } from './components/TopBar';
-import { TopView } from './components/TopView';
 import { PlanEditor } from './features/settings/PlanEditor';
 import { useCurrentUser } from './hooks/useCurrentUser';
+import { usePickList } from './hooks/usePickList';
 import { useRacks } from './hooks/useRacks';
 import { useTheme } from './hooks/useTheme';
-import type { Rack, Settings } from './types';
+import type { Item, Location, Settings } from './types';
 import styles from './App.module.css';
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
   const { users, currentUser, loading: usersLoading, error: usersError, selectUser } = useCurrentUser();
   const racksState = useRacks();
+  const pickList = usePickList();
 
   const [settings, setSettings] = useState<Settings>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [selectedRack, setSelectedRack] = useState<Rack | null>(null);
+  const [planFocus, setPlanFocus] = useState<PlanFocus | null>(null);
 
   // Le curseur doit être dans le champ de recherche dès l'ouverture.
   const searchRef = useRef<HTMLInputElement>(null);
+  const focusNonce = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,10 +52,24 @@ export function App() {
     searchRef.current?.focus();
   }, []);
 
+  const focusOnLocation = useCallback((location: Location, force: boolean) => {
+    focusNonce.current += 1;
+    setPlanFocus({ location, force, nonce: focusNonce.current });
+  }, []);
+
+  /** Une référence trouvée rejoint la liste et allume son emplacement. */
+  const pickItem = useCallback(
+    (item: Item) => {
+      pickList.add(item);
+      const location = item.locations[0];
+      if (item.kind === 'physical' && location) focusOnLocation(location, false);
+    },
+    [pickList, focusOnLocation],
+  );
+
   const planWidth = Number(settings.plan_width) || 100;
   const planHeight = Number(settings.plan_height) || 100;
   const error = serverError ?? usersError ?? racksState.error;
-  const totalItems = racksState.racks.reduce((total, rack) => total + rack.items_count, 0);
 
   return (
     <div className={styles.app}>
@@ -77,57 +96,46 @@ export function App() {
         <section className={styles.column} aria-label="Recherche et préparation">
           <div className={styles.panel}>
             <h2 className={styles.panelTitle}>Rechercher une référence</h2>
-            <input
-              ref={searchRef}
-              className={styles.search}
-              type="search"
-              placeholder="Référence du bon de préparation…"
-              autoComplete="off"
-              spellCheck={false}
-              aria-label="Référence à rechercher"
+            <SearchBox
+              inputRef={searchRef}
+              canCreate={currentUser !== null}
+              onPick={pickItem}
+              onCreateRequest={(reference) =>
+                window.alert(
+                  `Formulaire d’ajout de « ${reference} » : étape 6.\n` +
+                    'La recherche et la liste de préparation sont opérationnelles.',
+                )
+              }
             />
           </div>
 
           <div className={`${styles.panel} ${styles.panelGrow}`}>
             <h2 className={styles.panelTitle}>Liste de préparation</h2>
-            <div className={styles.placeholder}>
-              <span>Aucune référence pour l’instant.</span>
-              <span>Recherche et liste de préparation : étape 5.</span>
-            </div>
+            <PickList
+              physical={pickList.physical}
+              withoutStock={pickList.withoutStock}
+              pending={pickList.pending}
+              flashedItemId={pickList.flashedItemId}
+              onToggle={pickList.toggle}
+              onRemove={pickList.remove}
+              onCheckAll={pickList.checkEverything}
+              onClear={pickList.clear}
+              onShowLocation={(location) => focusOnLocation(location, true)}
+            />
           </div>
         </section>
 
         <section className={styles.column} aria-label="Plan du local">
           <div className={`${styles.panel} ${styles.panelGrow}`}>
-            <div className={styles.panelHeader}>
-              <h2 className={styles.panelTitle}>
-                Plan du local{settings.room_name ? ` — ${settings.room_name}` : ''}
-              </h2>
-              <span className={styles.panelMeta}>
-                {racksState.racks.length} rayonnage(s) · {totalItems} article(s)
-                {selectedRack ? ` · ${selectedRack.rack_code} sélectionné` : ''}
-              </span>
-            </div>
-
-            {racksState.loading ? (
-              <p className={styles.loading}>Chargement du plan…</p>
-            ) : (
-              <TopView
-                racks={racksState.racks}
-                planWidth={planWidth}
-                planHeight={planHeight}
-                selectedRackId={selectedRack?.id ?? null}
-                onSelectRack={setSelectedRack}
-              />
-            )}
-
-            {selectedRack ? (
-              <p className={styles.panelMeta}>
-                {selectedRack.rack_code} · {selectedRack.label || 'sans libellé'} —{' '}
-                {selectedRack.shelves_count} étagères × {selectedRack.slots_per_shelf} cases. Vue
-                de face : étape 5.
-              </p>
-            ) : null}
+            <PlanPanel
+              racks={racksState.racks}
+              planWidth={planWidth}
+              planHeight={planHeight}
+              slotStates={pickList.slots}
+              highlight={pickList.racks}
+              focus={planFocus}
+              loading={racksState.loading}
+            />
           </div>
         </section>
       </main>

@@ -76,10 +76,13 @@ describe('migrations', () => {
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
       .all()
       .map((row) => row.name);
+    const appliquees = premier.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n;
     premier.close();
 
+    // Rouvrir la base ne doit rejouer aucune migration déjà appliquée.
     const second = openDatabase(file);
-    expect(second.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n).toBe(1);
+    expect(second.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n).toBe(appliquees);
+    expect(appliquees).toBeGreaterThanOrEqual(2);
     db = second;
 
     expect(tables).toEqual(

@@ -67,8 +67,22 @@ identifié : `user_id` dans le corps de la requête, la query string ou l'en-tê
 | `PUT` | `/api/items/:id/location` | déplacement d'un article (drag & drop) |
 | `GET` | `/api/movements?reference=` | historique filtrable |
 | `GET` `PUT` | `/api/settings` | réglages (thème, nom du local…) |
-| `GET` | `/api/export/xlsx` · `/api/export/csv` | export des articles |
+| `GET` | `/api/export/xlsx` · `/api/export/csv` | export des articles (avec famille) |
 | `GET` | `/api/backups` | sauvegardes disponibles |
+
+## Périmètre
+
+L'entreprise a deux branches partageant la même base articles Sage : **Sharp
+Center** (reprographie, familles suffixées `TGC11`) et **Optimium**
+(informatique, familles suffixées `TGC22`), chacune avec son local au dépôt
+« QUARTIER LATIN ». **PlanStock ne couvre que le local Optimium.** L'autre local
+et le dépôt « DUCOS » sont hors périmètre : les articles concernés se marquent
+« Autre site » et n'occupent aucun emplacement.
+
+Les articles portent un code et un libellé de famille Sage facultatifs
+(`family_code`, `family_label`), repris dans l'export. PlanStock ne se connecte
+jamais à Sage : ces champs sont saisis ou, plus tard, importés depuis un export
+fourni par l'utilisateur.
 
 ## Codes d'emplacement
 
@@ -82,7 +96,7 @@ de face). Ce code est toujours **calculé**, jamais saisi à la main.
 - [x] Étape 2 — Serveur Express + base SQLite + migrations + sauvegardes + API REST
 - [x] Étape 3 — Squelette du front (thème clair/sombre, layout, sélecteur de prénom)
 - [x] Étape 4 — Éditeur de plan (rayonnages, cases, vue de dessus)
-- [ ] Étape 5 — Vue de face, recherche, liste de préparation
+- [x] Étape 5 — Vue de face, recherche, liste de préparation
 - [ ] Étape 6 — Édition d'articles, drag & drop, historique
 - [ ] Étape 7 — Mode Inventaire initial
 - [ ] Étape 8 — Paramètres, export Excel/CSV, sauvegardes, données de démo

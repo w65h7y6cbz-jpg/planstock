@@ -30,10 +30,19 @@ export interface Item {
   reference_display: string;
   designation: string;
   kind: ItemKind;
+  /** Code de famille Sage, ex. `0310` (facultatif). */
+  family_code: string | null;
+  /** Libellé de famille Sage, ex. `IMPRIMANTE LASER N/B TGC22` (facultatif). */
+  family_label: string | null;
   created_at: string;
   updated_at: string;
   locations: Location[];
 }
+
+export type SlotItem = Pick<
+  Item,
+  'id' | 'reference' | 'reference_display' | 'designation' | 'kind' | 'family_code' | 'family_label'
+>;
 
 export interface SlotContent {
   id: number;
@@ -43,7 +52,7 @@ export interface SlotContent {
   slot_index: number;
   short_code: string;
   code: string;
-  items: Pick<Item, 'id' | 'reference' | 'reference_display' | 'designation' | 'kind'>[];
+  items: SlotItem[];
 }
 
 export interface Rack {

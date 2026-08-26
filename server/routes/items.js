@@ -27,6 +27,13 @@ function isPhysical(kind) {
   return kind === 'physical';
 }
 
+/** Famille Sage (facultative) : conservée telle quelle, jamais interprétée. */
+function readFamily(value, fallback = null) {
+  if (value === undefined) return fallback;
+  if (value === null || value === '') return null;
+  return String(value).trim() || null;
+}
+
 function readSlotId(value) {
   if (value === undefined || value === null || value === '') return null;
   const id = Number(value);
@@ -98,10 +105,20 @@ export function createItemsRouter(db) {
     const item = db.transaction(() => {
       const info = db
         .prepare(
-          `INSERT INTO items (reference, reference_display, designation, kind, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO items (reference, reference_display, designation, kind,
+                              family_code, family_label, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(reference, display, String(body.designation ?? '').trim(), kind, now, now);
+        .run(
+          reference,
+          display,
+          String(body.designation ?? '').trim(),
+          kind,
+          readFamily(body.family_code),
+          readFamily(body.family_label),
+          now,
+          now,
+        );
 
       const created = findItemById(db, Number(info.lastInsertRowid));
       if (slot) {
@@ -136,6 +153,8 @@ export function createItemsRouter(db) {
     const kind = readKind(body.kind, item.kind);
     const designation =
       body.designation === undefined ? item.designation : String(body.designation).trim();
+    const familyCode = readFamily(body.family_code, item.family_code);
+    const familyLabel = readFamily(body.family_label, item.family_label);
 
     const currentSlot = item.locations[0] ?? null;
     let targetSlot = currentSlot;
@@ -152,13 +171,27 @@ export function createItemsRouter(db) {
 
     const locationChanged = (currentSlot?.slot_id ?? null) !== (targetSlot?.slot_id ?? null);
     const fieldsChanged =
-      reference !== item.reference || designation !== item.designation || kind !== item.kind;
+      reference !== item.reference ||
+      designation !== item.designation ||
+      kind !== item.kind ||
+      familyCode !== item.family_code ||
+      familyLabel !== item.family_label;
 
     const updated = db.transaction(() => {
       db.prepare(
-        `UPDATE items SET reference = ?, reference_display = ?, designation = ?, kind = ?, updated_at = ?
+        `UPDATE items SET reference = ?, reference_display = ?, designation = ?, kind = ?,
+                          family_code = ?, family_label = ?, updated_at = ?
           WHERE id = ?`,
-      ).run(reference, display, designation, kind, new Date().toISOString(), id);
+      ).run(
+        reference,
+        display,
+        designation,
+        kind,
+        familyCode,
+        familyLabel,
+        new Date().toISOString(),
+        id,
+      );
 
       if (locationChanged) {
         db.prepare('DELETE FROM item_locations WHERE item_id = ?').run(id);

@@ -85,8 +85,19 @@
   dominant-baseline: middle;
 }
 
+/* Rayonnage dont tous les articles de la liste sont cochés. */
+.rackDone .rackBody {
+  fill: var(--success-soft);
+  stroke: var(--success);
+  stroke-width: 0.7;
+}
+
 .badge {
   fill: var(--accent);
+}
+
+.badgeDone {
+  fill: var(--success);
 }
 
 .badgeText {

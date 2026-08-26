@@ -3,7 +3,14 @@ import ExcelJS from 'exceljs';
 import { asyncRoute } from '../lib/http.js';
 import { listItems } from '../lib/store.js';
 
-const HEADERS = ['Référence', 'Désignation', 'Type', 'Emplacement'];
+const HEADERS = [
+  'Référence',
+  'Désignation',
+  'Famille',
+  'Libellé famille',
+  'Type',
+  'Emplacement',
+];
 
 const KIND_LABELS = {
   physical: 'Physique',
@@ -16,6 +23,8 @@ function exportRows(db) {
   return listItems(db).map((item) => [
     item.reference_display,
     item.designation,
+    item.family_code ?? '',
+    item.family_label ?? '',
     KIND_LABELS[item.kind] ?? item.kind,
     item.locations.map((location) => location.code).join(' + '),
   ]);
@@ -60,8 +69,15 @@ export function createExportRouter(db) {
       sheet.getRow(1).font = { bold: true };
       for (const row of exportRows(db)) sheet.addRow(row);
 
-      sheet.columns = [{ width: 18 }, { width: 46 }, { width: 14 }, { width: 16 }];
-      sheet.autoFilter = { from: 'A1', to: 'D1' };
+      sheet.columns = [
+        { width: 18 },
+        { width: 46 },
+        { width: 10 },
+        { width: 34 },
+        { width: 14 },
+        { width: 16 },
+      ];
+      sheet.autoFilter = { from: 'A1', to: 'F1' };
 
       const buffer = await workbook.xlsx.writeBuffer();
       res.setHeader(
