@@ -98,6 +98,6 @@ de face). Ce code est toujours **calculé**, jamais saisi à la main.
 - [x] Étape 4 — Éditeur de plan (rayonnages, cases, vue de dessus)
 - [x] Étape 5 — Vue de face, recherche, liste de préparation
 - [x] Étape 6 — Édition d'articles, drag & drop, historique
-- [ ] Étape 7 — Mode Inventaire initial
+- [x] Étape 7 — Mode Inventaire initial
 - [ ] Étape 8 — Paramètres, export Excel/CSV, sauvegardes, données de démo
 - [ ] Étape 9 — Raccourci bureau, README final, critères d'acceptation

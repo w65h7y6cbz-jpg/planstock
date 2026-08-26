@@ -7,6 +7,7 @@ import type { SlotSelection } from './components/RackView';
 import { SearchBox } from './components/SearchBox';
 import { Toasts } from './components/Toasts';
 import { TopBar } from './components/TopBar';
+import { InventoryMode } from './features/inventory/InventoryMode';
 import { ItemForm } from './features/items/ItemForm';
 import { MovementsView } from './features/settings/MovementsView';
 import { PlanEditor } from './features/settings/PlanEditor';
@@ -23,7 +24,7 @@ type FormState =
   | { mode: 'edit'; item: Item }
   | null;
 
-type SettingsTab = 'plan' | 'history';
+type SettingsTab = 'plan' | 'history' | 'data';
 
 const messageOf = (cause: unknown, fallback: string) =>
   cause instanceof ApiError || cause instanceof Error ? cause.message : fallback;
@@ -45,6 +46,7 @@ export function App() {
   const [pickedSlot, setPickedSlot] = useState<SlotContent | null>(null);
   const [pendingMove, setPendingMove] = useState<{ item: SlotItem; rackId: number } | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
 
   // Le curseur doit être dans le champ de recherche dès l'ouverture.
   const searchRef = useRef<HTMLInputElement>(null);
@@ -54,11 +56,13 @@ export function App() {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await api.settings.get();
-        if (!cancelled) {
-          setSettings(response);
-          setServerError(null);
-        }
+        const [settingsResponse, health] = await Promise.all([api.settings.get(), api.health()]);
+        if (cancelled) return;
+        setSettings(settingsResponse);
+        setServerError(null);
+        // Base vide au premier lancement : on enchaîne directement sur
+        // l'assistant de plan puis la saisie guidée.
+        if (health.empty) setInventoryOpen(true);
       } catch (cause) {
         if (!cancelled) setServerError(messageOf(cause, 'Serveur injoignable.'));
       }
@@ -68,9 +72,10 @@ export function App() {
     };
   }, []);
 
+  // Le curseur revient dans la recherche au chargement et à la sortie de l'inventaire.
   useEffect(() => {
-    searchRef.current?.focus();
-  }, []);
+    if (!inventoryOpen) searchRef.current?.focus();
+  }, [inventoryOpen]);
 
   const focusOnPlan = useCallback((rackId: number, slotId: number | null, force: boolean) => {
     focusNonce.current += 1;
@@ -252,6 +257,29 @@ export function App() {
   const planHeight = Number(settings.plan_height) || 100;
   const error = serverError ?? usersError ?? racksState.error;
 
+  // L'inventaire couvre tout l'écran : on démonte l'écran principal plutôt que
+  // de le laisser dessous (deux plans dans le DOM, doublons pour les lecteurs
+  // d'écran). L'état vit dans les hooks, rien n'est perdu.
+  if (inventoryOpen) {
+    return (
+      <>
+        <InventoryMode
+          currentUser={currentUser}
+          users={users}
+          onSelectUser={selectUser}
+          racks={racksState.racks}
+          racksLoading={racksState.loading}
+          planWidth={planWidth}
+          planHeight={planHeight}
+          onCreateRacks={racksState.createRacks}
+          onItemSaved={() => void refreshAfterMutation(null)}
+          onClose={() => setInventoryOpen(false)}
+        />
+        <Toasts toasts={toasts} onDismiss={dismiss} />
+      </>
+    );
+  }
+
   return (
     <div className={styles.app}>
       <TopBar
@@ -378,6 +406,15 @@ export function App() {
             >
               Historique
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={settingsTab === 'data'}
+              className={`${styles.tab} ${settingsTab === 'data' ? styles.tabActive : ''}`}
+              onClick={() => setSettingsTab('data')}
+            >
+              Données
+            </button>
           </div>
 
           {settingsTab === 'plan' ? (
@@ -391,8 +428,29 @@ export function App() {
               onUpdate={racksState.updateRack}
               onDelete={racksState.removeRack}
             />
-          ) : (
+          ) : settingsTab === 'history' ? (
             <MovementsView />
+          ) : (
+            <div className={styles.dataTab}>
+              <h3 className={styles.panelTitle}>Inventaire initial</h3>
+              <p className={styles.dataHint}>
+                Mode guidé pour saisir le stock : référence, désignation, puis clic sur la case du
+                plan. Il démarre tout seul quand la base est vide.
+              </p>
+              <button
+                type="button"
+                className={styles.dataButton}
+                onClick={() => {
+                  setSettingsTab(null);
+                  setInventoryOpen(true);
+                }}
+              >
+                Relancer l’inventaire initial
+              </button>
+              <p className={styles.dataHint}>
+                Export Excel/CSV, sauvegardes et restauration : étape 8.
+              </p>
+            </div>
           )}
         </Modal>
       ) : null}

@@ -150,3 +150,36 @@
   background: var(--bg-elevated);
   border-color: var(--border);
 }
+
+.dataTab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: 320px;
+  padding: var(--space-4);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.dataHint {
+  max-width: 60ch;
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.dataButton {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-4);
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  transition: filter var(--transition);
+}
+
+.dataButton:hover {
+  filter: brightness(1.08);
+}

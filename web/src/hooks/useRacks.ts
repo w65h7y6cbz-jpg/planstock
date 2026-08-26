@@ -8,6 +8,8 @@ export interface RacksState {
   error: string | null;
   reload: () => Promise<void>;
   createRack: (payload: RackPayload) => Promise<void>;
+  /** Création en série (assistant de plan) : un seul rechargement à la fin. */
+  createRacks: (payloads: RackPayload[]) => Promise<void>;
   updateRack: (id: number, payload: RackPayload) => Promise<void>;
   removeRack: (id: number) => Promise<void>;
   clearError: () => void;
@@ -50,6 +52,20 @@ export function useRacks(): RacksState {
     [reload],
   );
 
+  const createRacks = useCallback(
+    async (payloads: RackPayload[]) => {
+      try {
+        for (const payload of payloads) {
+          await api.racks.create(payload);
+        }
+        setError(null);
+      } finally {
+        await reload();
+      }
+    },
+    [reload],
+  );
+
   const updateRack = useCallback(
     async (id: number, payload: RackPayload) => {
       // Mise à jour optimiste : le rectangle suit la souris sans attendre le serveur.
@@ -87,6 +103,7 @@ export function useRacks(): RacksState {
     error,
     reload,
     createRack,
+    createRacks,
     updateRack,
     removeRack,
     clearError: useCallback(() => setError(null), []),
