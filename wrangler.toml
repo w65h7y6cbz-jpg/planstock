@@ -18,9 +18,11 @@ workers_dev = false
 # L'adresse de PlanStock. « Domaine personnalisé » et non « route » : le Worker
 # est l'origine, il n'y a pas de serveur derrière. Cloudflare crée
 # l'enregistrement DNS et le certificat tout seul au premier déploiement.
-# Le domaine lifepilot.win doit être une zone active du même compte Cloudflare.
+#
+# Un sous-domaine, jamais l'apex : lifepilot.win sert déjà l'application
+# LifePilot. PlanStock ne prend que ce nom-ci et ne touche à rien d'autre.
 [[routes]]
-pattern = "stock.lifepilot.win"
+pattern = "planstock.lifepilot.win"
 custom_domain = true
 
 # L'interface compilée est servie directement par le réseau Cloudflare, sans
