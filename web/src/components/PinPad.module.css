@@ -1,0 +1,103 @@
+/* Pavé de saisie du code. Dessiné en gros : on s'en sert debout, parfois avec
+   des gants, et un code mal tapé bloque le compte au bout de cinq essais. */
+.pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  outline: none;
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  text-align: center;
+}
+
+.hint {
+  max-width: 32ch;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Les chiffres tapés ne s'affichent jamais : quelqu'un regarde toujours
+   par-dessus l'épaule dans un magasin. */
+.dots {
+  display: flex;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+}
+
+.dot {
+  width: 16px;
+  height: 16px;
+  background: var(--surface-3);
+  border-radius: 50%;
+  transition:
+    background var(--transition),
+    transform var(--transition);
+}
+
+.dotFilled {
+  background: var(--accent);
+  transform: scale(1.15);
+}
+
+.error {
+  max-width: 32ch;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--danger);
+  text-align: center;
+}
+
+.keys {
+  display: grid;
+  grid-template-columns: repeat(3, 78px);
+  gap: var(--space-2);
+}
+
+.key {
+  height: 66px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  transition:
+    background var(--transition),
+    transform 80ms;
+}
+
+.key:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.key:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.keyGhost {
+  height: 66px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  transition: background var(--transition);
+}
+
+.keyGhost:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.keyGhost:disabled {
+  opacity: 0.35;
+}
+
+.submitNote {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  text-align: center;
+}

@@ -1,5 +1,15 @@
 import { Hono } from 'hono';
-import { badRequest, body, conflict, notFound, requireUser, routeId } from '../lib/http.js';
+import {
+  badRequest,
+  body,
+  conflict,
+  forbidden,
+  identifyUser,
+  notFound,
+  requirePermission,
+  requireUser,
+  routeId,
+} from '../lib/http.js';
 import { cleanDisplayReference, normalizeReference } from '../lib/reference.js';
 import {
   SIDES,
@@ -11,6 +21,16 @@ import {
   movementStatement,
   movementStatementByReference,
 } from '../lib/store.js';
+
+/**
+ * Qui demande, si on peut le savoir. Chercher ne l'exige pas — mais la même
+ * règle d'identification s'applique qu'ailleurs : un prénom sans code se
+ * reconnaît à son identifiant, un prénom protégé à sa session.
+ */
+async function currentUser(db, c) {
+  const { user } = await identifyUser(db, c);
+  return user;
+}
 
 // `other_site` est conservé tel quel en base ; côté interface il s'appelle
 // « Hors PlanStock » depuis que les deux locaux sont gérés ici.
@@ -102,6 +122,22 @@ async function readSearchCustomerId(db, c, siteId) {
   if (siteId && customer.site_id !== siteId) {
     throw badRequest(`« ${customer.name} » n’est pas un stock à part de ce local.`);
   }
+
+  // Chercher reste ouvert à qui ne s'annonce pas — mais un prénom mis en liste
+  // blanche ne voit que les stocks qu'on lui a confiés, et le refus est net
+  // plutôt qu'une liste vide qu'on prendrait pour un stock épuisé.
+  const asker = await currentUser(db, c);
+  if (asker?.restrict_customers) {
+    const granted = await db.get(
+      'SELECT 1 AS ok FROM user_customers WHERE user_id = ? AND customer_id = ?',
+      asker.id,
+      customer.id,
+    );
+    if (!granted) {
+      throw forbidden(`« ${asker.first_name} » n’a pas accès au stock « ${customer.name} ».`);
+    }
+  }
+
   return customer.id;
 }
 
@@ -368,7 +404,7 @@ items.put('/:id/location', async (c) => {
   const db = c.get('db');
   const id = routeId(c);
   const payload = await body(c);
-  const user = await requireUser(db, c, payload);
+  const user = requirePermission(await requireUser(db, c, payload), 'can_move');
   const item = await findItemById(db, id);
 
   if (!isPhysical(item.kind)) {
@@ -433,7 +469,7 @@ items.delete('/:id', async (c) => {
   const db = c.get('db');
   const id = routeId(c);
   const payload = await body(c);
-  const user = await requireUser(db, c, payload);
+  const user = requirePermission(await requireUser(db, c, payload), 'can_delete');
   const item = await findItemById(db, id);
 
   await db.batch([

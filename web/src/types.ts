@@ -97,8 +97,27 @@ export interface User {
   id: number;
   first_name: string;
   active: boolean;
+  /** Ce prénom est protégé par un code à 4 chiffres. */
+  has_pin: boolean;
+  can_move: boolean;
+  can_delete: boolean;
+  can_admin: boolean;
+  /**
+   * Vrai : ce prénom ne voit que les stocks à part listés dans `customer_ids`.
+   * Faux : il les voit tous. Le distinguer d'une liste vide compte — sans quoi
+   * on ne saurait pas si personne n'a rien coché ou si tout est interdit.
+   */
+  restrict_customers: boolean;
+  /** Stocks à part confiés ; ne compte que si `restrict_customers` est vrai. */
+  customer_ids: number[];
   created_at: string;
 }
+
+/**
+ * Ce que le serveur dit de la session en cours. Même forme qu'un prénom de la
+ * liste — le nom sépare simplement « qui je suis » de « qui existe ».
+ */
+export type SessionUser = User;
 
 export interface Item {
   id: number;

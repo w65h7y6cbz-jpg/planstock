@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, type AccessState } from './api';
 import { AccessScreen } from './components/AccessScreen';
+import { Modal } from './components/Modal';
 import { PickDrawer } from './components/PickDrawer';
+import { PinPad } from './components/PinPad';
 import { PlanScreen } from './components/PlanScreen';
 import { ResultScreen, type SearchOutcome } from './components/ResultScreen';
 import { SearchHome, type SearchHandle } from './components/SearchHome';
@@ -63,7 +65,7 @@ const SETTINGS_TITLES: Record<
   ],
   users: [
     'Équipe',
-    'Les prénoms de l’atelier. Aucun mot de passe, aucun rôle.',
+    'Les prénoms de l’atelier, leur code à 4 chiffres et ce que chacun a le droit de faire.',
   ],
   movements: ['Mouvements', 'Qui a rangé quoi, quand, et depuis où.'],
   backups: [
@@ -83,9 +85,33 @@ export function App() {
     selectSite,
     reloadSites,
   } = useSites();
-  const { users, currentUser, selectUser, reloadUsers } = useCurrentUser();
+  const {
+    users,
+    currentUser,
+    selectUser,
+    reloadUsers,
+    pendingUser,
+    pinError,
+    pinBusy,
+    submitPin,
+    cancelPin,
+    refreshSession,
+  } = useCurrentUser();
   const { customers, reloadCustomers } = useCustomers(site?.id ?? null);
   const racksState = useRacks(site?.id ?? null);
+
+  /**
+   * Stocks à part que le prénom courant a le droit de fouiller. Le serveur
+   * refuserait les autres ; les laisser dans le menu ne ferait qu'offrir un
+   * choix qui finit en message d'erreur.
+   */
+  const searchableCustomers = useMemo(
+    () =>
+      currentUser?.restrict_customers
+        ? customers.filter((customer) => currentUser.customer_ids.includes(customer.id))
+        : customers,
+    [customers, currentUser],
+  );
   const pickList = usePickList();
   const { toasts, notify, dismiss } = useToasts();
 
@@ -450,7 +476,14 @@ export function App() {
                 onChanged={() => refreshAfterMutation(null)}
               />
             ) : screen.page === 'users' ? (
-              <UsersView currentUser={currentUser} onChanged={reloadUsers} />
+              <UsersView
+                site={site}
+                currentUser={currentUser}
+                onChanged={async () => {
+                  await reloadUsers();
+                  await refreshSession();
+                }}
+              />
             ) : screen.page === 'movements' ? (
               <MovementsView />
             ) : screen.page === 'backups' ? (
@@ -478,7 +511,7 @@ export function App() {
               <SearchHome
                 ref={searchRef}
                 site={site}
-                customers={customers}
+                customers={searchableCustomers}
                 compact
                 onSubmit={(query, customerId) => void runSearch(query, customerId)}
                 onPick={(item) => showItem(item)}
@@ -489,7 +522,7 @@ export function App() {
               <SearchHome
                 ref={searchRef}
                 site={site}
-                customers={customers}
+                customers={searchableCustomers}
                 onSubmit={(query, customerId) => void runSearch(query, customerId)}
                 onPick={(item) => showItem(item)}
               />
@@ -532,6 +565,20 @@ export function App() {
           onClose={() => setPlanOpen(false)}
           onMoveItem={(item, target, code) => void moveItem(item, target, code)}
         />
+      ) : null}
+
+      {/* Code demandé : rien n'est sélectionné tant qu'il n'est pas juste. */}
+      {pendingUser ? (
+        <Modal title={pendingUser.first_name} onClose={cancelPin} width={360}>
+          <PinPad
+            title={`Code de ${pendingUser.first_name}`}
+            hint="Quatre chiffres. Cinq essais ratés bloquent ce prénom un quart d’heure."
+            error={pinError}
+            busy={pinBusy}
+            onSubmit={(pin) => void submitPin(pin)}
+            onCancel={cancelPin}
+          />
+        </Modal>
       ) : null}
 
       <Toasts toasts={toasts} onDismiss={dismiss} />

@@ -24,7 +24,7 @@ const MENU: { action: MenuAction; label: string; hint: string }[] = [
   { action: 'racks', label: 'Rayonnages et zones', hint: 'Créer, déplacer, renommer' },
   { action: 'stocks', label: 'Stocks à part', hint: 'Ceux des clients à l’année' },
   { action: 'items', label: 'Articles', hint: 'Ajouter, corriger, ranger' },
-  { action: 'users', label: 'Équipe', hint: 'Les prénoms de l’atelier' },
+  { action: 'users', label: 'Équipe', hint: 'Prénoms, codes et droits' },
   { action: 'movements', label: 'Mouvements', hint: 'Qui a rangé quoi, quand' },
   { action: 'backups', label: 'Sauvegardes', hint: 'Copies et export du stock' },
   { action: 'site', label: 'Ce local', hint: 'Nom, couleur, logo, taille du plan' },
@@ -163,6 +163,14 @@ export function TopBar({
                       {user.first_name.slice(0, 1).toUpperCase()}
                     </span>
                     {user.first_name}
+                    {/* Le cadenas prévient qu'un code va être demandé : on ne
+                        clique pas au hasard sur un prénom qui se bloque au
+                        cinquième essai raté. */}
+                    {user.has_pin ? (
+                      <span className={styles.lock} title="Protégé par un code">
+                        🔒
+                      </span>
+                    ) : null}
                   </button>
                 ))
               )}

@@ -29,8 +29,35 @@ const TABLES = [
   'items',
   'item_locations',
   'movements',
+  // Les droits accordés à chacun : ce sont des données, pas des secrets.
+  'user_customers',
   'settings',
 ];
+
+/**
+ * Colonnes retirées de l'export.
+ *
+ * Un code à 4 chiffres n'a que 10 000 candidats : son empreinte se casse hors
+ * ligne en quelques secondes, quel que soit le nombre d'itérations. Un fichier
+ * de sauvegarde se range sur une clé USB, s'envoie par courriel, se retrouve
+ * dans un dossier partagé — il ne doit donc pas transporter ces empreintes.
+ * Restaurer redemande simplement leur code aux techniciens ; leurs droits, eux,
+ * sont bien sauvegardés.
+ *
+ * `app_secrets` n'est pas non plus dans la liste des tables, pour la même
+ * raison : le secret qui signe les sessions n'a rien à faire dans un fichier.
+ */
+const REDACTED_COLUMNS = { users: ['pin_hash', 'pin_salt', 'failed_attempts', 'locked_until'] };
+
+function redact(table, rows) {
+  const columns = REDACTED_COLUMNS[table];
+  if (!columns) return rows;
+  return rows.map((row) => {
+    const copy = { ...row };
+    for (const column of columns) delete copy[column];
+    return copy;
+  });
+}
 
 const FORMAT = 'planstock-backup-1';
 
@@ -40,7 +67,9 @@ export const backups = new Hono();
 backups.get('/export', async (c) => {
   const db = c.get('db');
   const tables = {};
-  for (const table of TABLES) tables[table] = await db.all(`SELECT * FROM ${table}`);
+  for (const table of TABLES) {
+    tables[table] = redact(table, await db.all(`SELECT * FROM ${table}`));
+  }
 
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
   c.header('Content-Type', 'application/json; charset=utf-8');
