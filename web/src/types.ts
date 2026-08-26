@@ -38,6 +38,8 @@ export interface Landmark {
   y: number;
   width: number;
   height: number;
+  /** Orientation en degrés : une porte est rarement d'équerre avec les murs. */
+  angle: number;
   created_at: string;
 }
 
@@ -141,7 +143,12 @@ export interface Rack {
   y: number;
   width: number;
   height: number;
+  /** Conservée par le schéma, remplacée par `angle` : plus rien ne la lit. */
   rotation: number;
+  /** Orientation en degrés, dans [0, 360[. Libre, pas seulement le quart de tour. */
+  angle: number;
+  /** Aspect du meuble : `''` ordinaire, `gondola` double face. Sans effet fonctionnel. */
+  style: string;
   items_count: number;
   created_at: string;
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, type RackPayload } from '../../api';
 import { PlanView } from '../../components/PlanView';
 import { aisleColor } from '../../lib/labels';
@@ -40,8 +40,6 @@ export function RacksView({
   const [localError, setLocalError] = useState<string | null>(null);
 
   const current = racks.find((rack) => rack.id === selected) ?? null;
-  const hasDoor = landmarks.some((landmark) => landmark.kind === 'door');
-  const hasBench = landmarks.some((landmark) => landmark.kind === 'bench');
 
   async function guard(run: () => Promise<void>) {
     setBusy(true);
@@ -104,6 +102,18 @@ export function RacksView({
             type="button"
             className={shared.button}
             disabled={!canEdit || busy}
+            onClick={() =>
+              void guard(() =>
+                onCreate({ shelves_count: 4, style: 'gondola', label: 'Gondole' }),
+              )
+            }
+          >
+            + Gondole
+          </button>
+          <button
+            type="button"
+            className={shared.button}
+            disabled={!canEdit || busy}
             onClick={() => void guard(() => onCreate({ kind: 'zone', label: 'Zone' }))}
           >
             + Zone
@@ -111,7 +121,7 @@ export function RacksView({
           <button
             type="button"
             className={shared.button}
-            disabled={!canEdit || busy || hasDoor}
+            disabled={!canEdit || busy}
             onClick={() =>
               void guard(async () => {
                 await api.landmarks.create({ site_id: site.id, kind: 'door' });
@@ -124,7 +134,7 @@ export function RacksView({
           <button
             type="button"
             className={shared.button}
-            disabled={!canEdit || busy || hasBench}
+            disabled={!canEdit || busy}
             onClick={() =>
               void guard(async () => {
                 await api.landmarks.create({ site_id: site.id, kind: 'bench' });
@@ -222,6 +232,30 @@ function RackForm({
   const [label, setLabel] = useState(rack.label);
   const [aisle, setAisle] = useState(rack.aisle);
   const [shelves, setShelves] = useState(String(rack.shelves_count));
+  // Cotes et angle : la souris place vite, le clavier place juste. Les deux
+  // écrivent au même endroit, et le plan se redessine à l'enregistrement.
+  const [x, setX] = useState(String(rack.x));
+  const [y, setY] = useState(String(rack.y));
+  const [width, setWidth] = useState(String(rack.width));
+  const [height, setHeight] = useState(String(rack.height));
+  const [angle, setAngle] = useState(String(rack.angle ?? 0));
+  const [style, setStyle] = useState(rack.style ?? '');
+
+  // Le meuble bouge aussi à la souris sur le plan : les champs suivent, sinon
+  // enregistrer les renverrait à leur position d'il y a dix secondes.
+  useEffect(() => {
+    setX(String(rack.x));
+    setY(String(rack.y));
+    setWidth(String(rack.width));
+    setHeight(String(rack.height));
+    setAngle(String(rack.angle ?? 0));
+  }, [rack.x, rack.y, rack.width, rack.height, rack.angle]);
+
+  /** Champ vide ou illisible : on garde la valeur actuelle plutôt que zéro. */
+  const numberOr = (value: string, fallback: number) => {
+    const parsed = Number(value.replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
 
   return (
     <form
@@ -231,7 +265,12 @@ function RackForm({
         onSave({
           label,
           aisle,
-          ...(rack.is_zone ? {} : { shelves_count: Number(shelves) || rack.shelves_count }),
+          x: numberOr(x, rack.x),
+          y: numberOr(y, rack.y),
+          width: numberOr(width, rack.width),
+          height: numberOr(height, rack.height),
+          angle: numberOr(angle, rack.angle ?? 0),
+          ...(rack.is_zone ? {} : { shelves_count: Number(shelves) || rack.shelves_count, style }),
         });
       }}
     >
@@ -268,6 +307,55 @@ function RackForm({
           />
         </label>
       )}
+
+      {rack.is_zone ? null : (
+        <label className={shared.field}>
+          Aspect
+          <select value={style} onChange={(event) => setStyle(event.target.value)} disabled={disabled}>
+            <option value="">Rayonnage contre un mur</option>
+            <option value="gondola">Gondole (double face)</option>
+          </select>
+        </label>
+      )}
+
+      <p className={styles.formTitle}>Cotes et orientation</p>
+      <div className={shared.row}>
+        <label className={shared.field}>
+          Position X
+          <input type="number" step="0.5" min={0} max={100} value={x}
+            onChange={(event) => setX(event.target.value)} disabled={disabled} />
+        </label>
+        <label className={shared.field}>
+          Position Y
+          <input type="number" step="0.5" min={0} max={100} value={y}
+            onChange={(event) => setY(event.target.value)} disabled={disabled} />
+        </label>
+      </div>
+      <div className={shared.row}>
+        <label className={shared.field}>
+          Largeur
+          <input type="number" step="0.5" min={3} max={100} value={width}
+            onChange={(event) => setWidth(event.target.value)} disabled={disabled} />
+        </label>
+        <label className={shared.field}>
+          Profondeur
+          <input type="number" step="0.5" min={2} max={100} value={height}
+            onChange={(event) => setHeight(event.target.value)} disabled={disabled} />
+        </label>
+      </div>
+      <label className={shared.field}>
+        Angle (degrés)
+        <input type="number" step="5" value={angle}
+          onChange={(event) => setAngle(event.target.value)} disabled={disabled} />
+      </label>
+      <div className={shared.buttons}>
+        {[0, 45, 90, 135].map((preset) => (
+          <button key={preset} type="button" className={shared.button} disabled={disabled}
+            onClick={() => setAngle(String(preset))}>
+            {preset}°
+          </button>
+        ))}
+      </div>
 
       <div className={shared.buttons}>
         <button type="submit" className={shared.primary} disabled={disabled}>
