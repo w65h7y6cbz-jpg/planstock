@@ -1,0 +1,21 @@
+.plate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+}
+
+/* Un logo de marque garde ses couleurs : on ne le recolore pas. Sur fond
+   sombre, ses lettres foncées disparaîtraient — on le pose donc sur une plaque
+   claire, comme sur un document imprimé. */
+[data-theme='dark'] .plate {
+  padding: 5px 9px;
+  background: #f4f5f8;
+  border-radius: 10px;
+}
+
+.image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+}

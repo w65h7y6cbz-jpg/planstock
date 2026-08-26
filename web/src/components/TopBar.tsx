@@ -82,9 +82,9 @@ export function TopBar({
 
   return (
     <header className={styles.bar} ref={barRef}>
-      <button type="button" className={styles.brand} onClick={onHome}>
-        <Logo site={site} size={34} />
-        <span className={styles.siteName}>{site.name}</span>
+      <button type="button" className={styles.brand} onClick={onHome} title={site.name}>
+        <Logo site={site} size={site.logo ? 32 : 34} title={site.logo ? site.name : undefined} />
+        {site.logo ? null : <span className={styles.siteName}>{site.name}</span>}
       </button>
 
       <div className={styles.actions}>

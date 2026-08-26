@@ -8,6 +8,10 @@ import styles from './SearchHome.module.css';
 /**
  * Écran d'accueil : rien que la recherche, au centre.
  *
+ * On ne cherche jamais qu'une chose ici : une référence d'article. Le numéro
+ * du bon de préparation ne sert pas à chercher — il se saisit dans le tiroir,
+ * pour nommer la liste en cours.
+ *
  * La saisie passe en majuscules — c'est ainsi que les références figurent sur
  * le bon papier — mais la recherche reste tolérante : uk-707-e-l trouve
  * UK707E/L. Les suggestions s'affichent sous le champ à partir de trois
@@ -142,7 +146,7 @@ export const SearchHome = forwardRef<SearchHandle, SearchHomeProps>(function Sea
             // Les références sont écrites en majuscules sur le bon de préparation.
             onChange={(event) => setQuery(event.target.value.toUpperCase())}
             onKeyDown={onKeyDown}
-            placeholder="Référence du bon de préparation…"
+            placeholder="Tapez une référence…"
             aria-label="Rechercher une référence"
             aria-autocomplete="list"
             aria-controls={open ? listId : undefined}

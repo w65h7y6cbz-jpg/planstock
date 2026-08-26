@@ -34,10 +34,13 @@ installation.
    le poste ; la couleur de l'application suit le local.
 2. Choisissez votre prénom en haut à droite (obligatoire pour toute
    modification ; la recherche fonctionne sans).
-3. Le curseur est déjà dans le grand champ au centre. Tapez une référence du bon
-   de préparation, puis **Entrée** : l'emplacement s'affiche en énorme, le
+3. Le curseur est déjà dans le grand champ au centre. Tapez une **référence
+   d'article**, puis **Entrée** : l'emplacement s'affiche en énorme, le
    rayonnage est dessiné à côté avec l'étagère surlignée, et la référence rejoint
    la liste de préparation.
+
+   La recherche ne connaît que les références. Le numéro du bon (NPL…) ne sert
+   pas à chercher : il se saisit dans le tiroir, pour nommer la liste en cours.
 4. **Suivante** vide le champ pour la référence suivante du bon. Les lignes sans
    stock physique (services, articles hors PlanStock) reçoivent un grand message
    coloré et sont cochées d'office.

@@ -11,11 +11,12 @@ import shared from './settings.module.css';
  * est sélectionné.
  */
 
+/** Les deux premières sont relevées au cœur des lettres des logos fournis. */
 const SUGGESTED = [
+  { label: 'Indigo Optimium', value: '#38388c' },
+  { label: 'Rouge Sharp', value: '#e42020' },
   { label: 'Bleu', value: '#0057a8' },
-  { label: 'Rouge', value: '#e30613' },
   { label: 'Vert', value: '#12703a' },
-  { label: 'Prune', value: '#6f3f8f' },
   { label: 'Ardoise', value: '#3d4757' },
 ];
 

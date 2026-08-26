@@ -1,10 +1,15 @@
 import type { Site } from '../types';
+import styles from './Logo.module.css';
 
 /**
  * Logo du local. Tant qu'aucun fichier n'a été déposé dans `public/logos/`, un
  * pictogramme est dessiné : trois tablettes chargées, dans la couleur du local.
  * Aucune image externe n'est chargée — l'application doit fonctionner réseau
  * débranché.
+ *
+ * `size` est une hauteur, jamais une largeur : les logos de marque sont des
+ * mots, quatre fois plus larges que hauts. Les fixer dans un carré les
+ * réduirait à presque rien.
  */
 
 interface LogoProps {
@@ -17,13 +22,14 @@ interface LogoProps {
 export function Logo({ site, size = 40, title }: LogoProps) {
   if (site?.logo) {
     return (
-      <img
-        src={`/logos/${site.logo}`}
-        alt={title ?? site.name}
-        width={size}
-        height={size}
-        style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
-      />
+      <span className={styles.plate}>
+        <img
+          className={styles.image}
+          src={`/logos/${site.logo}`}
+          alt={title ?? site.name}
+          style={{ height: size }}
+        />
+      </span>
     );
   }
 
