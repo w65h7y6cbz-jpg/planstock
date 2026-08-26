@@ -23,6 +23,9 @@ const TABLES = [
   'racks',
   'shelves',
   'landmarks',
+  // Les sous-stocks viennent après les locaux dont ils dépendent, et avant les
+  // emplacements qui les désignent.
+  'customers',
   'items',
   'item_locations',
   'movements',

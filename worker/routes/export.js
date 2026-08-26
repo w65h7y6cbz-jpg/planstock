@@ -18,6 +18,7 @@ export const HEADERS = [
   'Type',
   'Local',
   'Emplacement',
+  'Réservé à',
   'Côté',
 ];
 
@@ -29,9 +30,18 @@ export const KIND_LABELS = {
 
 const SIDE_LABELS = { left: 'Gauche', center: 'Centre', right: 'Droite' };
 
-/** Une ligne par article ; les emplacements multiples sont joints par « + ». */
+/**
+ * Une ligne par article ; les emplacements multiples sont joints par « + ».
+ *
+ * Un article peut être au stock global ET réservé chez un ou plusieurs clients.
+ * Le code porte alors le nom du sous-stock (« R03-E2 · AOCCI »), sans quoi
+ * « R03-E1 + R03-E2 » ne dirait pas lequel est réservé. La colonne « Réservé à »
+ * reprend les noms seuls, pour filtrer le tableur par client.
+ */
 export async function exportRows(db, siteId = null) {
   const join = (values) => [...new Set(values.filter(Boolean))].join(' + ');
+  const owned = (location) =>
+    location.customer_name ? `${location.code} · ${location.customer_name}` : location.code;
 
   return (await listItems(db, { siteId })).map((item) => [
     item.reference_display,
@@ -40,7 +50,8 @@ export async function exportRows(db, siteId = null) {
     item.family_label ?? '',
     KIND_LABELS[item.kind] ?? item.kind,
     join(item.locations.map((location) => location.site_name)),
-    item.locations.map((location) => location.code).join(' + '),
+    item.locations.map(owned).join(' + '),
+    join(item.locations.map((location) => location.customer_name)),
     join(item.locations.map((location) => SIDE_LABELS[location.side])),
   ]);
 }
