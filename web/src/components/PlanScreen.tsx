@@ -172,6 +172,7 @@ export function PlanScreen({
                 landmarks={landmarks}
                 planWidth={site.plan_width}
                 planHeight={site.plan_height}
+                outline={site.outline}
                 // Le cadrage suit le meuble ouvert : « Voir tout le local »
                 // le remet à zéro et la vue revient sur le local entier.
                 focusRackId={openRackId}

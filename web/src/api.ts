@@ -132,6 +132,8 @@ export const api = {
         logo?: string;
         plan_width?: number;
         plan_height?: number;
+        /** Coins des murs `[[x, y], …]`, ou `''` pour revenir au rectangle. */
+        outline?: [number, number][] | '';
       },
     ) => request<Site>(`/sites/${id}`, { method: 'PATCH', ...json(changes) }),
   },

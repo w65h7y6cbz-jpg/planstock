@@ -22,6 +22,11 @@ export interface Site {
   position: number;
   plan_width: number;
   plan_height: number;
+  /**
+   * Coins des murs, en JSON `[[x, y], …]`. Vide = rectangle. Le cadre reste
+   * `plan_width` × `plan_height` ; le contour ne décrit que la forme dedans.
+   */
+  outline: string;
   racks_count: number;
   zones_count: number;
   items_count: number;

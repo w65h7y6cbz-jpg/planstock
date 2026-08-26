@@ -438,6 +438,7 @@ export function App() {
                 onUpdate={racksState.updateRack}
                 onDelete={racksState.removeRack}
                 onLandmarksChanged={reloadLandmarks}
+                onSiteChanged={reloadSites}
               />
             ) : screen.page === 'stocks' ? (
               <CustomersView site={site} onChanged={reloadCustomers} />

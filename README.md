@@ -102,8 +102,22 @@ Le nombre d'étagères — ou de rangées de broches — se règle dans le même
 Le réduire est refusé tant que les étagères supprimées contiennent des articles,
 et le message dit lesquelles.
 
-Le contour du local, lui, reste un rectangle : sa largeur et sa profondeur se
-règlent dans Réglages → Ce local.
+### Les murs
+
+**« Modifier les murs »** bascule le plan en mode contour : les meubles se
+figent, les coins du local apparaissent.
+
+- **Glisse un coin** pour déplacer un mur.
+- Le **+** au milieu d'un pan **ajoute un coin** — c'est ainsi qu'on creuse un
+  renfoncement ou qu'on coupe un angle.
+- **Double-clic** sur un coin le **retire** (trois au minimum : en dessous, il
+  n'y a plus de surface).
+- **« Revenir à un rectangle »** efface le contour.
+
+Le cadre de référence reste `plan_width` × `plan_height`, réglé dans Réglages →
+Ce local : c'est lui qui borne le déplacement des meubles et le cadrage de la
+vue. Le contour ne décrit que la forme des murs à l'intérieur — un meuble peut
+donc être posé hors des murs sans que rien ne l'en empêche.
 
 ## Écrans
 
@@ -223,7 +237,7 @@ planstock/
 ```bat
 npm install && npm --prefix web install
 
-npm test                     :: 111 tests d'API + 29 tests d'interface
+npm test                     :: 117 tests d'API + 29 tests d'interface
 npm run build                :: compile l'interface dans web/dist
 npm run dev                  :: PlanStock complet en local, sur une base D1 locale
 npm --prefix web run dev     :: interface seule, rechargement à chaud
