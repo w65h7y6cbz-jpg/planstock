@@ -16,7 +16,8 @@ physiquement l'article ». Aucune quantité, aucun prix, aucune commande.
 
 ## Ouvrir PlanStock
 
-À l'adresse du Worker, depuis n'importe quel poste du magasin.
+**<https://stock.lifepilot.win>**, depuis n'importe quel poste du magasin.
+C'est la seule adresse : PlanStock n'a pas de nom de repli en `.workers.dev`.
 
 1. **Choisis le local** — Optimium ou Sharp Center. Le choix est mémorisé sur le
    poste ; la couleur de l'application suit le local.
@@ -203,6 +204,22 @@ Un seul secret à créer une fois dans le dépôt GitHub
 npx wrangler login
 npm run deploy
 ```
+
+### L'adresse
+
+`stock.lifepilot.win` est déclaré dans `wrangler.toml` comme **domaine
+personnalisé** : le Worker est l'origine, il n'y a pas de serveur derrière lui.
+Le premier déploiement crée l'enregistrement DNS et le certificat tout seuls —
+rien à préparer dans l'onglet DNS.
+
+Deux conditions, sinon le déploiement s'arrête avec une erreur claire plutôt que
+de mettre quoi que ce soit en ligne :
+
+- `lifepilot.win` doit être une **zone active** du même compte Cloudflare ;
+- `stock.lifepilot.win` ne doit **pas** avoir déjà un enregistrement CNAME.
+
+Le domaine sert aussi à d'autres Workers (`lifepilot`, `lifepilot-preview`) :
+PlanStock ne prend que le sous-domaine `stock`, et ne touche à rien d'autre.
 
 ## API REST
 
