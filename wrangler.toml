@@ -1,0 +1,36 @@
+# PlanStock — Worker Cloudflare + base D1.
+#
+# L'application ne tourne plus sur un PC du magasin : le Worker sert l'interface
+# compilée (web/dist) et l'API, la base vit dans D1. La contrepartie assumée :
+# sans Internet, PlanStock est inaccessible.
+
+name = "planstock"
+main = "worker/index.js"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# L'interface compilée est servie directement par le réseau Cloudflare, sans
+# passer par le Worker. `run_worker_first` réserve /api au Worker, sinon le
+# repli « application d'une seule page » renverrait index.html pour l'API.
+[assets]
+directory = "web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+# La base est créée en région Océanie : c'est la plus proche de Nouméa.
+[[d1_databases]]
+binding = "DB"
+database_name = "planstock"
+database_id = "92c33a94-4add-4f1a-8314-f8676167de2b"
+migrations_dir = "migrations"
+
+[vars]
+# Adresses IP publiques autorisées, séparées par des virgules. Vide = filtrage
+# désactivé (tout le monde entre) : à ne laisser vide que le temps du premier
+# réglage. Se modifie sans redéployer :
+#   npx wrangler secret put PLANSTOCK_ALLOWED_IPS
+PLANSTOCK_ALLOWED_IPS = ""
+
+[observability]
+enabled = true

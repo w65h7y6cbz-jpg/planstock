@@ -1,5 +1,4 @@
 import type {
-  Backup,
   Health,
   Item,
   ItemKind,
@@ -37,7 +36,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...options,
     });
   } catch {
-    throw new ApiError(0, 'Le serveur PlanStock ne répond pas. Est-il bien démarré ?');
+    throw new ApiError(0, 'PlanStock ne répond pas. Vérifie la connexion Internet du magasin.');
   }
 
   if (response.status === 204) return undefined as T;
@@ -82,8 +81,28 @@ export interface RackPayload {
   rotation?: number;
 }
 
+/** État du contrôle d'accès, renvoyé même à une connexion refusée. */
+export interface AccessState {
+  open: boolean;
+  can_use_code: boolean;
+  /** Adresse publique vue par Cloudflare, à recopier dans les réglages. */
+  your_ip: string;
+}
+
+export interface BackupFile {
+  format: string;
+  exported_at: string;
+  tables: Record<string, unknown[]>;
+}
+
 export const api = {
   health: () => request<Health>('/health'),
+
+  access: {
+    get: () => request<AccessState>('/access'),
+    submit: (code: string) =>
+      request<{ open: boolean }>('/access', { method: 'POST', ...json({ code }) }),
+  },
 
   users: {
     list: (includeInactive = false) =>
@@ -184,14 +203,15 @@ export const api = {
   },
 
   backups: {
-    list: () => request<Backup[]>('/backups'),
-    create: (userId: number) =>
-      request<{ created: string }>('/backups', { method: 'POST', ...json({ user_id: userId }) }),
-    restore: (userId: number, name: string) =>
-      request<{ restored: string; safetyBackup: string }>(
-        `/backups/${encodeURIComponent(name)}/restore`,
-        { method: 'POST', ...json({ user_id: userId }) },
-      ),
+    /** Ce que pèse la base, table par table. */
+    counts: () => request<{ format: string; counts: Record<string, number> }>('/backups'),
+    /** Adresse du fichier à télécharger : le navigateur s'en charge. */
+    exportUrl: () => '/api/backups/export',
+    restore: (userId: number, backup: BackupFile) =>
+      request<{ restored: boolean; counts: Record<string, number> }>('/backups/restore', {
+        method: 'POST',
+        ...json({ user_id: userId, backup }),
+      }),
   },
 
   demo: {
@@ -203,6 +223,10 @@ export const api = {
       }),
   },
 
-  exportUrl: (format: 'xlsx' | 'csv', siteId?: number) =>
-    `/api/export/${format}${siteId ? `?site_id=${siteId}` : ''}`,
+  /** Le CSV est produit par le Worker ; le .xlsx est assemblé par le navigateur. */
+  exportCsvUrl: (siteId?: number) => `/api/export/csv${siteId ? `?site_id=${siteId}` : ''}`,
+  exportRows: (siteId?: number) =>
+    request<{ headers: string[]; rows: (string | number)[][] }>(
+      `/export/rows${siteId ? `?site_id=${siteId}` : ''}`,
+    ),
 };

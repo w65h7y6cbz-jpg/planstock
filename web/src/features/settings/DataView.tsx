@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api } from '../../api';
-import type { Backup, Site, User } from '../../types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ApiError, api, type BackupFile } from '../../api';
+import type { Site, User } from '../../types';
 import styles from './settings.module.css';
+
+/**
+ * Sauvegardes, restauration et exports.
+ *
+ * Il n'y a plus de fichiers sur un PC : la base vit chez Cloudflare. Trois
+ * filets remplacent les copies datées d'autrefois — l'historique automatique de
+ * D1 sur trente jours, le fichier à télécharger avant une manipulation risquée,
+ * et sa restauration.
+ */
 
 interface DataViewProps {
   /** L'export se limite au local ouvert. */
@@ -15,37 +24,33 @@ interface DataViewProps {
 const messageOf = (cause: unknown, fallback: string) =>
   cause instanceof ApiError || cause instanceof Error ? cause.message : fallback;
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
-}
-
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return (
-    `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ` +
-    `${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
-}
+const TABLE_LABELS: Record<string, string> = {
+  sites: 'locaux',
+  users: 'prénoms',
+  racks: 'rayonnages et zones',
+  shelves: 'étagères',
+  landmarks: 'repères',
+  items: 'articles',
+  item_locations: 'emplacements',
+  movements: 'mouvements',
+  settings: 'réglages',
+};
 
 export function DataView({ site, currentUser, onDataReplaced, onRelaunchInventory }: DataViewProps) {
-  const [backups, setBackups] = useState<Backup[] | null>(null);
+  const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [demoAvailable, setDemoAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
     try {
-      const [list, demo] = await Promise.all([api.backups.list(), api.demo.status()]);
-      setBackups(list);
+      const [backups, demo] = await Promise.all([api.backups.counts(), api.demo.status()]);
+      setCounts(backups.counts);
       setDemoAvailable(demo.available);
-      setError(null);
     } catch (cause) {
-      setError(messageOf(cause, 'Impossible de lire les sauvegardes.'));
+      setError(messageOf(cause, 'Impossible de lire l’état de la base.'));
     }
   }, []);
 
@@ -55,52 +60,77 @@ export function DataView({ site, currentUser, onDataReplaced, onRelaunchInventor
 
   function requireUser(): number | null {
     if (currentUser) return currentUser.id;
-    setError('Sélectionnez d’abord votre prénom en haut à droite.');
+    setError('Choisis ton prénom en haut à droite avant de modifier les données.');
     return null;
   }
 
-  async function createBackup() {
-    const userId = requireUser();
-    if (userId === null || busy) return;
+  /** Le fichier Excel est assemblé ici, dans le navigateur. */
+  async function downloadExcel() {
     setBusy(true);
+    setError(null);
     try {
-      const { created } = await api.backups.create(userId);
-      setNotice(`Sauvegarde créée : ${created}`);
-      setError(null);
-      await reload();
+      const { headers, rows } = await api.exportRows(site.id);
+      // Chargée à la demande : la bibliothèque pèse lourd, elle n'a pas à
+      // ralentir l'ouverture de l'application.
+      const ExcelJS = (await import('exceljs')).default;
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'PlanStock';
+      const sheet = workbook.addWorksheet('Articles');
+      sheet.addRow(headers);
+      sheet.getRow(1).font = { bold: true };
+      for (const row of rows) sheet.addRow(row);
+      sheet.columns = [18, 46, 10, 34, 16, 16, 16, 10].map((width) => ({ width }));
+      sheet.autoFilter = { from: 'A1', to: 'H1' };
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const url = URL.createObjectURL(
+        new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `planstock-${site.code}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
     } catch (cause) {
-      setError(messageOf(cause, 'Sauvegarde impossible.'));
+      setError(messageOf(cause, 'Export Excel impossible.'));
     } finally {
       setBusy(false);
     }
   }
 
-  async function restore(backup: Backup) {
+  async function restoreFromFile(file: File) {
     const userId = requireUser();
-    if (userId === null || busy) return;
-    if (
-      !window.confirm(
-        `Restaurer la sauvegarde du ${formatDate(backup.created_at)} ?\n\n` +
-          'Tout le contenu actuel (plan, articles, historique) sera remplacé. ' +
-          'Une copie de sécurité de l’état actuel est créée automatiquement avant.',
-      )
-    ) {
-      return;
-    }
+    if (userId === null) return;
 
     setBusy(true);
+    setError(null);
+    setNotice(null);
     try {
-      const result = await api.backups.restore(userId, backup.name);
+      const backup = JSON.parse(await file.text()) as BackupFile;
+      if (
+        !window.confirm(
+          `Remplacer tout le contenu actuel par la sauvegarde du ${new Date(
+            backup.exported_at,
+          ).toLocaleString('fr-FR')} ? Ce qui est en base aujourd’hui sera perdu.`,
+        )
+      ) {
+        return;
+      }
+
+      const result = await api.backups.restore(userId, backup);
       setNotice(
-        `Sauvegarde ${result.restored} restaurée. État précédent conservé dans ${result.safetyBackup}.`,
+        `Sauvegarde restaurée : ${result.counts.items} articles, ${result.counts.racks} emplacements.`,
       );
-      setError(null);
       await reload();
       await onDataReplaced();
     } catch (cause) {
-      setError(messageOf(cause, 'Restauration impossible.'));
+      setError(messageOf(cause, 'Restauration impossible : fichier illisible.'));
     } finally {
       setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   }
 
@@ -111,7 +141,7 @@ export function DataView({ site, currentUser, onDataReplaced, onRelaunchInventor
     try {
       const result = await api.demo.seed(userId);
       setNotice(
-        `Jeu de démonstration installé : ${result.racks} rayonnages et ${result.items} articles.`,
+        `Jeu de démonstration installé : ${result.racks} rayonnages, ${result.zones} zones et ${result.items} articles.`,
       );
       setError(null);
       await reload();
@@ -129,23 +159,75 @@ export function DataView({ site, currentUser, onDataReplaced, onRelaunchInventor
       {notice ? <p className={styles.success}>{notice}</p> : null}
 
       <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Export</h3>
+        <h3 className={styles.sectionTitle}>Export du stock</h3>
         <p className={styles.hint}>
-          Tous les articles avec leur désignation, leur famille, leur type et leur code
-          d’emplacement. Le CSV s’ouvre directement dans Excel (séparateur « ; »).
+          Les articles de {site.name} avec leur désignation, leur famille, leur type, leur
+          emplacement et leur côté. Le CSV s’ouvre directement dans Excel (séparateur « ; »).
         </p>
         <div className={styles.buttons}>
-          <a
+          <button
+            type="button"
             className={`${styles.button} ${styles.primary}`}
-            href={api.exportUrl('xlsx', site.id)}
-            download
+            disabled={busy}
+            onClick={() => void downloadExcel()}
           >
-            Export Excel (.xlsx)
-          </a>
-          <a className={styles.button} href={api.exportUrl('csv', site.id)} download>
+            {busy ? 'Préparation…' : 'Export Excel (.xlsx)'}
+          </button>
+          <a className={styles.button} href={api.exportCsvUrl(site.id)} download>
             Export CSV
           </a>
         </div>
+      </section>
+
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Sauvegardes</h3>
+        <p className={styles.hint}>
+          Cloudflare conserve tout seul <strong>trente jours d’historique</strong> de la base : on
+          peut revenir à n’importe quel instant sans avoir rien préparé. Le fichier ci-dessous
+          s’ajoute à ce filet, pour les manipulations risquées.
+        </p>
+
+        {counts ? (
+          <p className={styles.hint}>
+            Contenu actuel :{' '}
+            {Object.entries(counts)
+              .filter(([, total]) => total > 0)
+              .map(([table, total]) => `${total} ${TABLE_LABELS[table] ?? table}`)
+              .join(' · ')}
+          </p>
+        ) : null}
+
+        <div className={styles.buttons}>
+          <a
+            className={`${styles.button} ${styles.primary}`}
+            href={api.backups.exportUrl()}
+            download
+          >
+            Télécharger une sauvegarde
+          </a>
+          <button
+            type="button"
+            className={`${styles.button} ${styles.danger}`}
+            disabled={busy || !currentUser}
+            onClick={() => fileRef.current?.click()}
+          >
+            Restaurer depuis un fichier…
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void restoreFromFile(file);
+            }}
+          />
+        </div>
+        <p className={styles.warning}>
+          Restaurer remplace <strong>tout</strong> le contenu, les deux locaux compris. Si c’est une
+          erreur, l’historique de Cloudflare permet de revenir en arrière.
+        </p>
       </section>
 
       <section className={styles.section}>
@@ -169,48 +251,10 @@ export function DataView({ site, currentUser, onDataReplaced, onRelaunchInventor
           </button>
         </div>
         <p className={styles.hint}>
-          Le jeu de démonstration crée 4 rayonnages et une vingtaine d’articles pour prendre l’outil
-          en main. Il ne s’installe que sur une base sans rayonnage ni article, pour ne jamais
-          écraser de vraies données.
+          Le jeu de démonstration remplit les deux locaux d’un stock fictif pour prendre l’outil en
+          main. Il ne s’installe que sur une base sans rayonnage ni article, pour ne jamais écraser
+          de vraies données.
         </p>
-      </section>
-
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Sauvegardes ({backups?.length ?? 0})</h3>
-        <p className={styles.hint}>
-          Une copie datée est créée à chaque démarrage dans <code>data/backups/</code>, et celles de
-          plus de 30 jours sont supprimées. Restaurer remplace tout le contenu actuel ; l’état
-          précédent est d’abord sauvegardé.
-        </p>
-        <div className={styles.buttons}>
-          <button type="button" className={styles.button} disabled={busy} onClick={() => void createBackup()}>
-            Créer une sauvegarde maintenant
-          </button>
-        </div>
-
-        {backups === null ? (
-          <p className={styles.empty}>Chargement…</p>
-        ) : backups.length === 0 ? (
-          <p className={styles.empty}>Aucune sauvegarde pour l’instant.</p>
-        ) : (
-          <ul className={styles.list}>
-            {backups.map((backup) => (
-              <li key={backup.name} className={styles.listRow}>
-                <span className={`${styles.name} ${styles.mono}`}>{backup.name}</span>
-                <span className={styles.meta}>{formatDate(backup.created_at)}</span>
-                <span className={styles.meta}>{formatSize(backup.size)}</span>
-                <button
-                  type="button"
-                  className={`${styles.button} ${styles.danger}`}
-                  disabled={busy}
-                  onClick={() => void restore(backup)}
-                >
-                  Restaurer
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
     </div>
   );

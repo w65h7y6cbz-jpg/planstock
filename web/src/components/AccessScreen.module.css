@@ -1,0 +1,107 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 100%;
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  margin-bottom: var(--space-2);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+}
+
+.title {
+  max-width: 20ch;
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.text {
+  max-width: 48ch;
+  font-size: var(--text-md);
+  color: var(--text-muted);
+}
+
+.form {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.input {
+  width: 260px;
+  height: 58px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-md);
+  text-align: center;
+  background: var(--surface);
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
+  outline: none;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition);
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.button {
+  min-height: 58px;
+  padding: 0 var(--space-5);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transition: background var(--transition);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.error {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-md);
+}
+
+.ip {
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+}
+
+/* L'adresse est à recopier dans les réglages Cloudflare : un clic la copie. */
+.ipValue {
+  padding: 2px var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text);
+  background: var(--surface);
+  border-radius: 6px;
+}
+
+.copied {
+  margin-left: var(--space-2);
+  color: var(--success);
+}

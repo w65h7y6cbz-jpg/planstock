@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, api } from './api';
+import { ApiError, api, type AccessState } from './api';
+import { AccessScreen } from './components/AccessScreen';
 import { PickDrawer } from './components/PickDrawer';
 import { PlanScreen } from './components/PlanScreen';
 import { ResultScreen, type SearchOutcome } from './components/ResultScreen';
@@ -108,25 +109,34 @@ export function App() {
     void reloadLandmarks();
   }, [reloadLandmarks]);
 
-  // Contrôle de vie du serveur : sans lui, l'application n'a plus rien à dire.
-  useEffect(() => {
-    let cancelled = false;
-    void api
-      .health()
-      .then((health) => {
-        if (cancelled) return;
-        setServerDown(null);
-        // Base vide au premier lancement : on enchaîne sur l'inventaire initial.
-        if (health.empty) setInventoryOpen(true);
-      })
-      .catch(
-        (cause) =>
-          !cancelled && setServerDown(messageOf(cause, 'Serveur injoignable.')),
-      );
-    return () => {
-      cancelled = true;
-    };
+  // Premier contact : la porte est-elle ouverte, et la base est-elle vide ?
+  const [access, setAccess] = useState<AccessState | null>(null);
+
+  const knock = useCallback(async () => {
+    try {
+      const health = await api.health();
+      setAccess({ open: true, can_use_code: false, your_ip: '' });
+      setServerDown(null);
+      // Base vide au premier lancement : on enchaîne sur l'inventaire initial.
+      if (health.empty) setInventoryOpen(true);
+    } catch (cause) {
+      // 403 : la connexion n'est pas autorisée. L'écran d'entrée dira pourquoi.
+      if (cause instanceof ApiError && cause.status === 403) {
+        try {
+          setAccess(await api.access.get());
+          setServerDown(null);
+          return;
+        } catch {
+          // L'écran d'entrée lui-même est injoignable : c'est une panne.
+        }
+      }
+      setServerDown(messageOf(cause, 'PlanStock est injoignable.'));
+    }
   }, []);
+
+  useEffect(() => {
+    void knock();
+  }, [knock]);
 
   // Le curseur revient dans la recherche dès qu'on retrouve l'accueil.
   useEffect(() => {
@@ -325,11 +335,11 @@ export function App() {
   if (serverDown) {
     return (
       <main className={styles.offline}>
-        <h1 className={styles.offlineTitle}>PlanStock n’est pas démarré</h1>
+        <h1 className={styles.offlineTitle}>PlanStock est injoignable</h1>
         <p className={styles.offlineText}>
-          Lance <code>PlanStock.bat</code> sur le PC du SAV, puis réessaie.
-          Aucune donnée n’est perdue : elle est dans le fichier{' '}
-          <code>data/planstock.db</code>.
+          L’application est hébergée en ligne : sans connexion Internet, elle ne
+          répond pas. Vérifie la connexion du magasin, puis réessaie. Aucune
+          donnée n’est perdue.
         </p>
         <p className={styles.offlineDetail}>{serverDown}</p>
         <button
@@ -341,6 +351,11 @@ export function App() {
         </button>
       </main>
     );
+  }
+
+  // Porte fermée : ni le local ni la recherche ne servent tant qu'on est dehors.
+  if (access && !access.open) {
+    return <AccessScreen state={access} onOpened={() => void knock()} />;
   }
 
   if (!site) {

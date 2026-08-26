@@ -164,10 +164,3 @@ export interface Health {
 }
 
 export type Settings = Record<string, string>;
-
-export interface Backup {
-  name: string;
-  /** Taille du fichier en octets. */
-  size: number;
-  created_at: string;
-}

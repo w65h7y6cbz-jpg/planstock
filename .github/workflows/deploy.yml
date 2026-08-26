@@ -1,0 +1,59 @@
+name: Déploiement
+
+# Chaque poussée sur `main` déploie PlanStock : les tests passent, l'interface
+# est compilée, les migrations de base sont appliquées, puis le Worker part.
+# Rien à installer sur un poste : le déploiement se fait ici.
+#
+# Un seul secret à créer dans le dépôt (Settings → Secrets → Actions) :
+#   CLOUDFLARE_API_TOKEN — jeton Cloudflare avec les droits « Edit Workers »
+#                          et « D1 Edit » sur le compte.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deployer:
+    name: Tests puis mise en ligne
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dépendances
+        run: |
+          npm ci
+          npm --prefix web ci
+
+      - name: Tests de l'API (moteur Workers + base D1 locale)
+        run: npm run test:worker
+
+      - name: Tests de l'interface
+        run: npm run test:web
+
+      - name: Compilation de l'interface
+        run: npm run build
+
+      # Sur une base déjà à jour, c'est sans effet. C'est ce qui fait qu'une
+      # future migration part avec le code qui en a besoin, jamais après.
+      - name: Migrations de la base
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: d1 migrations apply planstock --remote
+
+      - name: Déploiement du Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy

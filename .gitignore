@@ -3,9 +3,5 @@ dist/
 .DS_Store
 *.log
 
-# Base de données locale et sauvegardes : jamais versionnées
-data/*.db
-data/*.db-shm
-data/*.db-wal
-data/backups/*
-!data/backups/.gitkeep
+# État local de wrangler : base D1 de développement, caches
+.wrangler/
