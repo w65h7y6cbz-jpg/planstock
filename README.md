@@ -44,6 +44,21 @@ installation.
 Tout le flux se fait au clavier : taper, **Entrée**, **↑ ↓** pour choisir dans
 les suggestions, **Échap** pour effacer le champ.
 
+### Si l'installation coince
+
+- **`npm warn allow-scripts` sur `better-sqlite3` / `esbuild`** — sans effet avec
+  npm 11 : les scripts s'exécutent, l'avertissement annonce seulement qu'une
+  version future les bloquera. Ne pas passer à npm 12 sans nécessité. Si une
+  réinstallation échoue un jour sur `better-sqlite3`, lancer la commande que npm
+  affiche : `npm approve-scripts --allow-scripts-pending`.
+- **Les `npm warn deprecated`** viennent de dépendances internes d'`exceljs` et
+  de `better-sqlite3`. Sans conséquence sur le fonctionnement.
+- **Le navigateur ne s'ouvre pas tout seul** — l'exécution de scripts PowerShell
+  est probablement bloquée sur le poste. Le serveur tourne quand même : ouvrir
+  <http://localhost:4823> à la main.
+- **L'interface manque après une installation interrompue** —
+  `npm --prefix web install` puis `npm run build`.
+
 ## Emplacements
 
 Deux sortes d'emplacements, dont le code est toujours **calculé**, jamais saisi :
