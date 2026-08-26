@@ -21,6 +21,18 @@ livré à l'étape 9, qui lance le serveur et ouvre le navigateur).
 
 Prérequis : **Node.js 20 LTS ou plus récent** (testé sur Node 22) et npm.
 
+### Développement
+
+```bat
+npm test                  :: tests serveur (vitest + supertest) et front
+npm --prefix web run dev  :: front en rechargement à chaud sur http://localhost:5173
+npm start                 :: serveur d'API sur http://localhost:4823
+```
+
+En développement, lancer les deux : le front sur 5173 relaie `/api` vers 4823.
+En production, `npm run build` puis `npm start` suffisent — Express sert
+`web/dist` et l'API sur le même port.
+
 ## Structure du projet
 
 ```
@@ -68,7 +80,7 @@ de face). Ce code est toujours **calculé**, jamais saisi à la main.
 
 - [x] Étape 1 — Vérification de l'environnement, arborescence, README
 - [x] Étape 2 — Serveur Express + base SQLite + migrations + sauvegardes + API REST
-- [ ] Étape 3 — Squelette du front (thème clair/sombre, layout, sélecteur de prénom)
+- [x] Étape 3 — Squelette du front (thème clair/sombre, layout, sélecteur de prénom)
 - [ ] Étape 4 — Éditeur de plan (rayonnages, cases, vue de dessus)
 - [ ] Étape 5 — Vue de face, recherche, liste de préparation
 - [ ] Étape 6 — Édition d'articles, drag & drop, historique

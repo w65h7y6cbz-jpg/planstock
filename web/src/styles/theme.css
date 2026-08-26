@@ -1,0 +1,123 @@
+/* PlanStock — thème clair/sombre.
+   Typographie système, une seule couleur accent, animations courtes.
+   Aucune police externe : l'application doit fonctionner réseau débranché. */
+
+:root {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', Consolas, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --transition: 160ms ease;
+
+  /* Cible cliquable minimale (contrainte UI : ≥ 36 px). */
+  --tap-target: 36px;
+}
+
+/* Thème clair (défaut) */
+:root,
+[data-theme='light'] {
+  --bg: #f5f5f7;
+  --bg-elevated: #ffffff;
+  --bg-sunken: #ebebef;
+  --border: #d8d8de;
+  --border-strong: #b9b9c2;
+  --text: #1d1d1f;
+  --text-muted: #6e6e73;
+  --text-faint: #8e8e93;
+
+  --accent: #0062cc;
+  --accent-contrast: #ffffff;
+  --accent-soft: #dbeafe;
+  --accent-border: #7db3ee;
+
+  --success: #1a7f37;
+  --success-soft: #d7f0dd;
+  --danger: #c8102e;
+  --danger-soft: #fbdde1;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 8%);
+  --shadow-md: 0 4px 16px rgb(0 0 0 / 10%);
+}
+
+[data-theme='dark'] {
+  --bg: #131316;
+  --bg-elevated: #1e1e22;
+  --bg-sunken: #0c0c0e;
+  --border: #35353c;
+  --border-strong: #4d4d57;
+  --text: #f2f2f5;
+  --text-muted: #a1a1ab;
+  --text-faint: #7c7c87;
+
+  --accent: #4c9dff;
+  --accent-contrast: #06121f;
+  --accent-soft: #17324f;
+  --accent-border: #2f6ba8;
+
+  --success: #46c26a;
+  --success-soft: #1a3823;
+  --danger: #ff6b7f;
+  --danger-soft: #43181f;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-md: 0 4px 16px rgb(0 0 0 / 45%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
