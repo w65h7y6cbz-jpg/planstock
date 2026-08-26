@@ -29,11 +29,21 @@ if not errorlevel 1 (
 rem --- Premiere utilisation : dependances et interface ----------------------
 if not exist "node_modules\" (
   echo   Premiere utilisation : installation des composants ^(quelques minutes^)...
-  call npm install || goto :erreur
+  call npm install
+  if errorlevel 1 goto :erreur
 )
+
+rem Filet de securite : si l'installation de l'interface n'a pas eu lieu.
+if not exist "web\node_modules\" (
+  echo   Installation de l'interface...
+  call npm --prefix web install
+  if errorlevel 1 goto :erreur
+)
+
 if not exist "web\dist\index.html" (
   echo   Preparation de l'interface...
-  call npm run build || goto :erreur
+  call npm run build
+  if errorlevel 1 goto :erreur
 )
 
 rem --- Ouvre le navigateur des que le serveur repond ------------------------
