@@ -50,6 +50,8 @@ export interface PickListState {
   flashedItemId: number | null;
   add: (item: Item) => boolean;
   addMany: (items: Item[]) => number;
+  /** Rafraîchit une ligne après modification ou déplacement de l'article. */
+  updateItem: (item: Item) => void;
   toggle: (itemId: number) => void;
   setChecked: (itemId: number, checked: boolean) => void;
   remove: (itemId: number) => void;
@@ -113,6 +115,13 @@ export function usePickList(): PickListState {
     flashedItemId,
     add,
     addMany,
+    updateItem: useCallback(
+      (item: Item) =>
+        setEntries((current) =>
+          current.map((entry) => (entry.item.id === item.id ? { ...entry, item } : entry)),
+        ),
+      [],
+    ),
     toggle: useCallback((itemId) => setEntries((current) => togglePickEntry(current, itemId)), []),
     setChecked: useCallback(
       (itemId, checked) => setEntries((current) => setPickEntryChecked(current, itemId, checked)),

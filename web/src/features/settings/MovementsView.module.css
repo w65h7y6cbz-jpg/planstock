@@ -1,0 +1,138 @@
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 420px;
+}
+
+.filter {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.filter input {
+  flex: 1;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  font-family: var(--font-mono);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.filter input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.count {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.tableWrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--space-2) var(--space-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-sunken);
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.date {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.reference {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.designation {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.create {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.move {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.update {
+  color: var(--text-muted);
+  background: var(--bg-sunken);
+}
+
+.delete {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.path {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.arrow {
+  color: var(--text-faint);
+}
+
+.empty {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-faint);
+}

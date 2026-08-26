@@ -128,6 +128,80 @@
   animation: pulse 1000ms ease;
 }
 
+/* Case survolée pendant un glisser-déposer. */
+.slotOver {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.slotSelectable {
+  cursor: pointer;
+}
+
+.slotSelectable:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.selectionBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: 14px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+}
+
+.selectionBanner span {
+  flex: 1;
+}
+
+.rackStrip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: 13px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition);
+}
+
+/* Pendant un glisser, la bande devient une zone de dépôt explicite. */
+.rackStripActive {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.rackStripLabel {
+  color: var(--text-muted);
+}
+
+.rackChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.rackChipOver {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 @keyframes pulse {
   0%,
   100% {
@@ -159,6 +233,13 @@
   gap: var(--space-1);
 }
 
+.pelletWrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
 .pellet {
   display: inline-flex;
   align-items: center;
@@ -174,6 +255,77 @@
   background: var(--bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
+  touch-action: none;
+}
+
+.pelletDraggable {
+  cursor: grab;
+}
+
+.pelletDragging {
+  opacity: 0.35;
+}
+
+.pelletOverlay {
+  cursor: grabbing;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+
+.pelletMenuButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  min-height: 28px;
+  margin-left: 2px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.pelletMenuButton:hover {
+  color: var(--text);
+  background: var(--bg-sunken);
+}
+
+.pelletMenu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 2px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 130px;
+  padding: var(--space-1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.pelletMenuItem {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  font-size: 14px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.pelletMenuItem:hover {
+  background: var(--bg-sunken);
+}
+
+.pelletMenuDanger:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 .pelletLit {

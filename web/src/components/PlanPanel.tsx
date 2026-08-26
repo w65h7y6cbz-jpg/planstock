@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import type { RackHighlight, SlotState } from '../lib/picklist';
-import type { Location, Rack, RackDetail } from '../types';
-import { RackView } from './RackView';
+import type { Rack, RackDetail, SlotContent, SlotItem } from '../types';
+import { RackView, type SlotSelection } from './RackView';
 import { TopView } from './TopView';
 import styles from './PlanPanel.module.css';
 
@@ -10,12 +10,13 @@ const AUTO_OPEN_KEY = 'planstock.auto_open_rack';
 
 /**
  * Demande d'ouverture de la vue de face.
- * `force` distingue un clic explicite sur un emplacement (qui ouvre toujours)
- * d'un ajout à la liste (soumis au réglage « Ouvrir automatiquement »).
- * `nonce` permet de redemander la même case deux fois de suite.
+ * `force` distingue une action explicite (clic sur un emplacement, dépôt sur un
+ * rayonnage) d'un ajout à la liste, soumis au réglage « Ouvrir automatiquement ».
+ * `nonce` permet de redemander deux fois de suite la même case.
  */
 export interface PlanFocus {
-  location: Location;
+  rackId: number;
+  slotId: number | null;
   force: boolean;
   nonce: number;
 }
@@ -28,6 +29,14 @@ interface PlanPanelProps {
   highlight: Map<number, RackHighlight>;
   focus: PlanFocus | null;
   loading: boolean;
+  canEdit: boolean;
+  selection: SlotSelection | null;
+  /** Incrémenté après chaque modification d'article pour recharger le rayonnage. */
+  refreshToken: number;
+  onMoveItem: (item: SlotItem, slot: SlotContent) => void;
+  onDropOnRack: (item: SlotItem, rackId: number) => void;
+  onEditItem: (item: SlotItem) => void;
+  onDeleteItem: (item: SlotItem) => void;
 }
 
 function readAutoOpen(): boolean {
@@ -46,6 +55,13 @@ export function PlanPanel({
   highlight,
   focus,
   loading,
+  canEdit,
+  selection,
+  refreshToken,
+  onMoveItem,
+  onDropOnRack,
+  onEditItem,
+  onDeleteItem,
 }: PlanPanelProps) {
   const [openRackId, setOpenRackId] = useState<number | null>(null);
   const [rackDetail, setRackDetail] = useState<RackDetail | null>(null);
@@ -65,13 +81,12 @@ export function PlanPanel({
     setFocusSlotId(slotId);
   }, []);
 
-  // Une référence physique ajoutée ouvre son rayonnage sur la bonne case.
   useEffect(() => {
     if (!focus || (!focus.force && !autoOpen)) return;
-    openRack(focus.location.rack_id, focus.location.slot_id);
+    openRack(focus.rackId, focus.slotId);
   }, [focus, autoOpen, openRack]);
 
-  // Détail du rayonnage ouvert ; rechargé quand le stock change.
+  // Détail du rayonnage ouvert ; rechargé après chaque modification du stock.
   useEffect(() => {
     if (openRackId === null) {
       setRackDetail(null);
@@ -85,7 +100,7 @@ export function PlanPanel({
     return () => {
       cancelled = true;
     };
-  }, [openRackId, racks]);
+  }, [openRackId, racks, refreshToken]);
 
   const ordered = [...racks].sort((a, b) => a.code - b.code);
   const currentIndex = ordered.findIndex((rack) => rack.id === openRackId);
@@ -118,11 +133,19 @@ export function PlanPanel({
       ) : rackDetail ? (
         <RackView
           rack={rackDetail}
+          racks={ordered}
           slotStates={slotStates}
           focusSlotId={focusSlotId}
+          canEdit={canEdit}
+          selection={selection}
           onBack={() => setOpenRackId(null)}
           onPrevious={previous ? () => openRack(previous.id) : undefined}
           onNext={next ? () => openRack(next.id) : undefined}
+          onOpenRack={(rackId) => openRack(rackId)}
+          onMoveItem={onMoveItem}
+          onDropOnRack={onDropOnRack}
+          onEditItem={onEditItem}
+          onDeleteItem={onDeleteItem}
         />
       ) : (
         <TopView

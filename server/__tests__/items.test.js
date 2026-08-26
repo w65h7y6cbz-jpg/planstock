@@ -215,6 +215,32 @@ describe('PATCH et DELETE /api/items/:id', () => {
     expect(response.body.locations).toHaveLength(0);
   });
 
+  it('modifie désignation et famille et journalise une mise à jour', async () => {
+    const created = await postItem({
+      reference: 'ARB123',
+      designation: 'Imprimante A3',
+      slot_id: slotIdOf(rack, 2, 4),
+    });
+
+    const response = await request(context.app)
+      .patch(`/api/items/${created.body.id}`)
+      .send({
+        user_id: context.userId,
+        designation: 'Imprimante A3 couleur',
+        family_code: '0310',
+        family_label: 'IMPRIMANTE LASER N/B TGC22',
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.designation).toBe('Imprimante A3 couleur');
+    expect(response.body.family_code).toBe('0310');
+    // L'emplacement n'a pas bougé : pas de mouvement « move ».
+    expect(response.body.locations[0].code).toBe('R01-E2-C4');
+
+    const { body: movements } = await request(context.app).get('/api/movements?reference=ARB123');
+    expect(movements.map((movement) => movement.action)).toEqual(['update', 'create']);
+  });
+
   it('supprime un article en gardant la trace dans l’historique', async () => {
     const created = await postItem({
       reference: 'ARB123',
