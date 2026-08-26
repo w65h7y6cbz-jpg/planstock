@@ -30,6 +30,38 @@ export const SIDE_SHORT: Record<Side, string> = {
 
 export const SIDES: Side[] = ['left', 'center', 'right'];
 
+/**
+ * Sur une gondole — panneau perforé à broches, servi des deux côtés — « côté »
+ * ne veut pas dire gauche ou droite : il désigne la face. Se tromper de face,
+ * c'est faire le tour du meuble pour rien, ou repartir bredouille alors que la
+ * référence est là. Il n'y a pas de milieu sur un panneau à deux faces.
+ */
+export const FACE_LABELS: Partial<Record<Side, string>> = {
+  left: 'face A',
+  right: 'face B',
+};
+
+export const FACE_SHORT: Partial<Record<Side, string>> = {
+  left: 'Face A',
+  right: 'Face B',
+};
+
+export const FACES: Side[] = ['left', 'right'];
+
+/** Une gondole porte des rangées de broches, pas des tablettes. */
+export const isPegboard = (style: string | null | undefined) => style === 'pegboard';
+
+/** Libellé du côté, selon que le meuble est une gondole ou un rayonnage. */
+export const sideLabel = (side: Side, style?: string | null) =>
+  (isPegboard(style) ? FACE_LABELS[side] : SIDE_LABELS[side]) ?? SIDE_LABELS[side];
+
+export const sideShort = (side: Side, style?: string | null) =>
+  (isPegboard(style) ? FACE_SHORT[side] : SIDE_SHORT[side]) ?? SIDE_SHORT[side];
+
+/** Le mot juste pour une bande : tablette sur un rayonnage, broche sur une gondole. */
+export const slotWord = (style?: string | null, plural = false) =>
+  isPegboard(style) ? (plural ? 'broches' : 'broche') : plural ? 'étagères' : 'étagère';
+
 /** Position relative du côté sur la largeur d'une étagère (0 = gauche, 1 = droite). */
 export const SIDE_POSITION: Record<Side, number> = {
   left: 1 / 6,

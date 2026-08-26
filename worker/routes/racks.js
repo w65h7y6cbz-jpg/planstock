@@ -55,11 +55,11 @@ function readAngle(value, fallback) {
 }
 
 /**
- * Aspect du meuble, sans effet sur son fonctionnement. Une gondole est un
- * rayonnage : elle porte des étagères et se code `R..`, elle se dessine
- * seulement autrement.
+ * Aspect du meuble. Une gondole reste un rayonnage — elle partage la
+ * numérotation des `R` — mais c'est un panneau perforé servi des deux côtés :
+ * on y suspend aux broches au lieu de poser sur des tablettes.
  */
-const STYLES = ['', 'gondola'];
+const STYLES = ['', 'pegboard'];
 
 function readStyle(value, fallback = '') {
   if (value === undefined || value === null) return fallback;

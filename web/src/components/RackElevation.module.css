@@ -218,3 +218,29 @@
     transform: translateY(-4px);
   }
 }
+
+/* ---- Gondole : panneau perforé et broches ---- */
+/* C'est le fond percé qui fait reconnaître le meuble, comme sur la photo. */
+.panel {
+  pointer-events: none;
+}
+
+.perforation {
+  fill: var(--text-faint);
+  opacity: 0.35;
+}
+
+.pegRow {
+  pointer-events: none;
+}
+
+/* La broche dépasse du panneau vers l'avant : c'est dessus qu'on suspend. */
+.pegStem {
+  stroke: var(--text-muted);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+
+.pegTip {
+  fill: var(--text-muted);
+}

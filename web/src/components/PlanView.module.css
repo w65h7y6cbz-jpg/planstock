@@ -249,10 +249,19 @@
   cursor: grabbing;
 }
 
-/* Gondole : l'arête centrale d'un meuble servi des deux côtés. */
-.gondolaSpine {
-  stroke: var(--line-strong);
-  stroke-width: 0.5;
-  stroke-linecap: round;
+/* Gondole : le panneau vu par la tranche, et ses broches des deux côtés. */
+.pegboard {
   pointer-events: none;
+}
+
+.pegboardPanel {
+  stroke: var(--line-strong);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+}
+
+.peg {
+  stroke: var(--text-faint);
+  stroke-width: 0.35;
+  stroke-linecap: round;
 }

@@ -510,17 +510,10 @@ function RackShape({
         rx="1.2"
       />
 
-      {/* Gondole : deux faces adossées. Le trait central dit qu'on la sert des
-          deux côtés, contrairement à un rayonnage plaqué contre un mur. */}
-      {rack.style === 'gondola' ? (
-        <line
-          className={styles.gondolaSpine}
-          x1={rack.x + 1}
-          y1={rack.y + rack.height / 2}
-          x2={rack.x + rack.width - 1}
-          y2={rack.y + rack.height / 2}
-        />
-      ) : null}
+      {/* Gondole : un panneau perforé servi des deux côtés. L'âme centrale est
+          le panneau ; les broches dépassent des deux faces, ce qui la distingue
+          au premier coup d'œil d'un rayonnage plaqué contre un mur. */}
+      {rack.style === 'pegboard' ? <PegboardMarks rack={rack} /> : null}
 
       {/* Liseré d'allée : la direction avant même d'avoir lu le code. */}
       {!rack.is_zone && tone !== 'transparent' ? (
@@ -665,6 +658,40 @@ function LandmarkShape({
       {editable && onGrab ? (
         <EditHandles box={box} kind="landmark" id={landmark.id} onGrab={onGrab} />
       ) : null}
+    </g>
+  );
+}
+
+/**
+ * Gondole vue de dessus : l'âme du panneau au milieu, et les broches qui
+ * dépassent de part et d'autre. C'est le dessin qui dit qu'on la sert des deux
+ * côtés — se tromper de face, c'est faire le tour du meuble pour rien.
+ */
+function PegboardMarks({ rack }: { rack: Rack }) {
+  const middle = rack.y + rack.height / 2;
+  // Une broche tous les trois pas environ, sans jamais dépasser le meuble.
+  const count = Math.max(2, Math.min(12, Math.round(rack.width / 3)));
+  const step = rack.width / (count + 1);
+  const reach = Math.min(1.6, rack.height / 2 - 0.4);
+
+  return (
+    <g className={styles.pegboard}>
+      <line
+        className={styles.pegboardPanel}
+        x1={rack.x + 1}
+        y1={middle}
+        x2={rack.x + rack.width - 1}
+        y2={middle}
+      />
+      {Array.from({ length: count }, (_, index) => {
+        const x = rack.x + step * (index + 1);
+        return (
+          <g key={index}>
+            <line className={styles.peg} x1={x} y1={middle} x2={x} y2={middle - reach} />
+            <line className={styles.peg} x1={x} y1={middle} x2={x} y2={middle + reach} />
+          </g>
+        );
+      })}
     </g>
   );
 }

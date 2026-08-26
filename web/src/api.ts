@@ -86,7 +86,7 @@ export interface RackPayload {
   height?: number;
   /** Orientation en degrés, libre. */
   angle?: number;
-  /** Aspect du meuble : `''` ordinaire, `gondola` double face. */
+  /** Aspect du meuble : `''` rayonnage, `pegboard` gondole à broches double face. */
   style?: string;
 }
 

@@ -104,7 +104,7 @@ export function RacksView({
             disabled={!canEdit || busy}
             onClick={() =>
               void guard(() =>
-                onCreate({ shelves_count: 4, style: 'gondola', label: 'Gondole' }),
+                onCreate({ shelves_count: 4, style: 'pegboard', label: 'Gondole' }),
               )
             }
           >
@@ -312,8 +312,8 @@ function RackForm({
         <label className={shared.field}>
           Aspect
           <select value={style} onChange={(event) => setStyle(event.target.value)} disabled={disabled}>
-            <option value="">Rayonnage contre un mur</option>
-            <option value="gondola">Gondole (double face)</option>
+            <option value="">Rayonnage à tablettes</option>
+            <option value="pegboard">Gondole — panneau à broches, double face</option>
           </select>
         </label>
       )}

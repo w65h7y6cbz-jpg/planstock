@@ -72,6 +72,10 @@ Deux sortes d'emplacements, dont le code est toujours **calculé**, jamais saisi
   sans étagère : pile au sol, palette, cage grillagée, table, présentoir à
   roulettes. Les articles y sont posés directement.
 
+- **Gondole** : `R{..}-B{rangée}` — `R05-B3`. C'est un panneau perforé garni de
+  broches, servi **des deux côtés**. On y suspend au lieu de poser, d'où le `B`
+  plutôt que le `E`. Elle partage la numérotation des rayonnages : c'en est un.
+
 `R01` et `Z01` coexistent : les numérotations sont indépendantes. Elles
 repartent aussi de 1 dans chaque local — `R01` d'Optimium et `R01` de Sharp
 Center sont deux rayonnages différents.
@@ -79,6 +83,27 @@ Center sont deux rayonnages différents.
 Un article rangé sur une étagère peut porter un **côté** facultatif — gauche,
 centre ou droite. C'est une indication d'appoint, dessinée sur la tablette :
 elle n'entre pas dans le code, ne conditionne rien et peut rester vide.
+
+Sur une gondole, ce même champ désigne la **face** — A ou B — et là il compte :
+se tromper de face, c'est faire le tour du meuble pour rien, ou repartir
+bredouille alors que la référence est à portée de main.
+
+## Dessiner le local
+
+**Réglages → Rayonnages et zones.** Le catalogue pose des rayonnages, des
+gondoles, des zones, des portes et des établis — autant que le local en compte.
+
+Chaque meuble se déplace et se redimensionne à la souris, **pivote librement**
+par la poignée au-dessus de lui (avec un aimant sur les multiples de 45°), et se
+cote au clavier : position, largeur, profondeur, angle. Les deux façons écrivent
+au même endroit.
+
+Le nombre d'étagères — ou de rangées de broches — se règle dans le même panneau.
+Le réduire est refusé tant que les étagères supprimées contiennent des articles,
+et le message dit lesquelles.
+
+Le contour du local, lui, reste un rectangle : sa largeur et sa profondeur se
+règlent dans Réglages → Ce local.
 
 ## Écrans
 
@@ -90,7 +115,7 @@ elle n'entre pas dans le code, ne conditionne rien et peut rester vide.
 | **Plan du local** | plein écran (bouton ou **F2**) ; vue de dessus avec un peu d'épaisseur, cadrage automatique sur la cible, parcours numéroté pendant une préparation |
 | **Tiroir de préparation** | à droite, s'ouvre au premier ajout : lignes cochables, rien à saisir |
 | **Inventaire initial** | une question à la fois : le meuble, puis l'étagère, puis les références |
-| **Réglages** (⚙) | Rayonnages et zones · Stocks à part · Articles · Équipe · Mouvements · Sauvegardes · Ce local |
+| **Réglages** (⚙) | Rayonnages, gondoles et zones · Stocks à part · Articles · Équipe · Mouvements · Sauvegardes · Ce local |
 
 Le plan est **fixe** : il n'y a ni molette ni glisser du fond, rien à recadrer.
 Cliquer un meuble l'ouvre dans un panneau à droite, où l'on déplie une étagère
@@ -198,7 +223,7 @@ planstock/
 ```bat
 npm install && npm --prefix web install
 
-npm test                     :: 102 tests d'API + 29 tests d'interface
+npm test                     :: 111 tests d'API + 29 tests d'interface
 npm run build                :: compile l'interface dans web/dist
 npm run dev                  :: PlanStock complet en local, sur une base D1 locale
 npm --prefix web run dev     :: interface seule, rechargement à chaud

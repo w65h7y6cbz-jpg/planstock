@@ -174,15 +174,15 @@ describe('plan modulaire — angle libre, cotes et aspect', () => {
     expect(body).toMatchObject({ x: 12.5, y: 40, width: 33.25, height: 6 });
   });
 
-  it('pose une gondole : un rayonnage qui se dessine autrement', async () => {
+  it('pose une gondole : un panneau à broches, servi des deux côtés', async () => {
     const { status, body } = await api('/api/racks', {
       method: 'POST',
-      json: { site_id: 1, label: 'Gondole centrale', style: 'gondola', shelves_count: 4 },
+      json: { site_id: 1, label: 'Gondole centrale', style: 'pegboard', shelves_count: 4 },
     });
 
     expect(status).toBe(201);
-    expect(body).toMatchObject({ style: 'gondola', kind: 'rack' });
-    // Une gondole porte bien ses étagères : c'est un rayonnage.
+    expect(body).toMatchObject({ style: 'pegboard', kind: 'rack' });
+    // Une gondole porte bien ses rangées de broches : c'est un rayonnage.
     expect(body.shelves).toHaveLength(4);
   });
 

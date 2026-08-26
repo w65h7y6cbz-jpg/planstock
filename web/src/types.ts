@@ -54,6 +54,8 @@ export interface Location {
   rack_kind: RackKind;
   rack_label: string;
   rack_aisle: string;
+  /** Aspect du meuble porteur : une gondole se range sur des broches. */
+  rack_style: string;
   shelf_index: number | null;
   /** Gauche / centre / droite, ou `null` si non précisé. */
   side: Side | null;
@@ -147,7 +149,7 @@ export interface Rack {
   rotation: number;
   /** Orientation en degrés, dans [0, 360[. Libre, pas seulement le quart de tour. */
   angle: number;
-  /** Aspect du meuble : `''` ordinaire, `gondola` double face. Sans effet fonctionnel. */
+  /** Aspect : `''` rayonnage classique, `pegboard` gondole à broches, servie des deux côtés. */
   style: string;
   items_count: number;
   created_at: string;

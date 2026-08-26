@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, type ItemPayload } from '../../api';
-import { KIND_LABELS, SIDE_SHORT } from '../../lib/labels';
+import { KIND_LABELS, sideShort } from '../../lib/labels';
 import type { Item, Rack, Site, User } from '../../types';
 import { useCustomers } from '../../hooks/useCustomers';
 import { ItemForm } from '../items/ItemForm';
@@ -160,7 +160,7 @@ export function ItemsView({ site, racks, currentUser, onChanged }: ItemsViewProp
                   <td className={styles.code}>
                     {location ? location.code : KIND_LABELS[item.kind]}
                   </td>
-                  <td className={styles.side}>{location?.side ? SIDE_SHORT[location.side] : '—'}</td>
+                  <td className={styles.side}>{location?.side ? sideShort(location.side, location.rack_style) : '—'}</td>
                   <td className={styles.rowActions}>
                     <button
                       type="button"
