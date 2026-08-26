@@ -29,7 +29,7 @@ describe('POST /api/racks — rayonnages', () => {
   });
 
   it('crée cinq étagères par défaut', async () => {
-    const response = await request(context.app).post('/api/racks').send({ label: 'Sans précision' });
+    const response = await request(context.app).post('/api/racks').send({ site_id: context.siteId, label: 'Sans précision' });
     expect(response.body.shelves_count).toBe(5);
   });
 
@@ -47,14 +47,14 @@ describe('POST /api/racks — rayonnages', () => {
     await createRack(request, context.app, { code: 5 });
     const response = await request(context.app)
       .post('/api/racks')
-      .send({ code: 5, shelves_count: 2 });
+      .send({ site_id: context.siteId, code: 5, shelves_count: 2 });
 
     expect(response.status).toBe(409);
     expect(response.body.error).toContain('R05');
   });
 
   it('refuse un nombre d’étagères invalide', async () => {
-    const response = await request(context.app).post('/api/racks').send({ shelves_count: 0 });
+    const response = await request(context.app).post('/api/racks').send({ site_id: context.siteId, shelves_count: 0 });
     expect(response.status).toBe(400);
     expect(response.body.error).toContain('étagères');
   });

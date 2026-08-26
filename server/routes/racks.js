@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { badRequest, conflict, notFound, routeId } from '../lib/http.js';
 import { formatRackCode } from '../lib/locationCode.js';
 import {
+  findSite,
   listRackShelves,
   listZoneItems,
   rackItemCount,
@@ -68,8 +69,12 @@ export function createRacksRouter(db) {
       : { ...decorated, shelves: listRackShelves(db, rack.id), items: [] };
   }
 
+  /** `?site_id=` restreint au local demandé ; sans lui, tous les locaux. */
   router.get('/', (req, res) => {
-    const rows = db.prepare('SELECT * FROM racks ORDER BY kind, code').all();
+    const siteId = Number(req.query.site_id);
+    const rows = Number.isInteger(siteId)
+      ? db.prepare('SELECT * FROM racks WHERE site_id = ? ORDER BY kind, code').all(siteId)
+      : db.prepare('SELECT * FROM racks ORDER BY site_id, kind, code').all();
     res.json(rows.map((row) => decorateRack(row, rackItemCount(db, row.id))));
   });
 
@@ -85,6 +90,7 @@ export function createRacksRouter(db) {
 
   router.post('/', (req, res) => {
     const body = req.body ?? {};
+    const site = findSite(db, Number(body.site_id));
     const kind = readKind(body.kind);
 
     // Une zone (pile au sol, palette, table…) n'a aucune étagère.
@@ -99,23 +105,29 @@ export function createRacksRouter(db) {
 
     const code =
       body.code === undefined || body.code === null || body.code === ''
-        ? nextCode(db, kind)
+        ? nextCode(db, site.id, kind)
         : readInteger(body.code, { field: 'Le numéro d’emplacement', min: 1, max: 99 });
 
-    if (db.prepare('SELECT id FROM racks WHERE kind = ? AND code = ?').get(kind, code)) {
-      throw conflict(`L’emplacement ${formatRackCode(code, kind)} existe déjà.`);
+    if (
+      db
+        .prepare('SELECT id FROM racks WHERE site_id = ? AND kind = ? AND code = ?')
+        .get(site.id, kind, code)
+    ) {
+      throw conflict(`L’emplacement ${formatRackCode(code, kind)} existe déjà dans ${site.name}.`);
     }
 
-    const count = db.prepare('SELECT COUNT(*) AS total FROM racks').get().total;
+    const count = db.prepare('SELECT COUNT(*) AS total FROM racks WHERE site_id = ?').get(site.id)
+      .total;
     const placement = defaultPlacement(count);
 
     const created = db.transaction(() => {
       const info = db
         .prepare(
-          `INSERT INTO racks (code, kind, label, aisle, shelves_count, x, y, width, height, rotation, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO racks (site_id, code, kind, label, aisle, shelves_count, x, y, width, height, rotation, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
+          site.id,
           code,
           kind,
           String(body.label ?? '').trim(),
@@ -174,9 +186,13 @@ export function createRacksRouter(db) {
 
     if (next.code !== rack.code) {
       const clash = db
-        .prepare('SELECT id FROM racks WHERE kind = ? AND code = ? AND id <> ?')
-        .get(rack.kind, next.code, id);
-      if (clash) throw conflict(`L’emplacement ${formatRackCode(next.code, rack.kind)} existe déjà.`);
+        .prepare('SELECT id FROM racks WHERE site_id = ? AND kind = ? AND code = ? AND id <> ?')
+        .get(rack.site_id, rack.kind, next.code, id);
+      if (clash) {
+        throw conflict(
+          `L’emplacement ${formatRackCode(next.code, rack.kind)} existe déjà dans ce local.`,
+        );
+      }
     }
 
     const updated = db.transaction(() => {
@@ -223,13 +239,17 @@ export function createRacksRouter(db) {
   return router;
 }
 
-function nextCode(db, kind) {
-  const max = db.prepare('SELECT MAX(code) AS code FROM racks WHERE kind = ?').get(kind).code ?? 0;
+/** Les numéros repartent de 1 dans chaque local. */
+function nextCode(db, siteId, kind) {
+  const max =
+    db
+      .prepare('SELECT MAX(code) AS code FROM racks WHERE site_id = ? AND kind = ?')
+      .get(siteId, kind).code ?? 0;
   if (max >= 99) {
     throw conflict(
       kind === 'zone'
-        ? 'Le nombre maximal de zones (99) est atteint.'
-        : 'Le nombre maximal de rayonnages (99) est atteint.',
+        ? 'Le nombre maximal de zones (99) est atteint dans ce local.'
+        : 'Le nombre maximal de rayonnages (99) est atteint dans ce local.',
     );
   }
   return max + 1;

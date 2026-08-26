@@ -13,9 +13,11 @@ const BACKUP_PATTERN = /^planstock-\d{4}-\d{2}-\d{2}-\d{4}(-\d+)?\.db$/;
  * sauvegarde sont amenées au même niveau de schéma avant la copie.
  */
 const TABLES_IN_DEPENDENCY_ORDER = [
+  'sites',
   'users',
   'racks',
   'shelves',
+  'landmarks',
   'items',
   'item_locations',
   'movements',

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { badRequest, conflict, routeId, requireUser } from '../lib/http.js';
 import { cleanDisplayReference, normalizeReference } from '../lib/reference.js';
 import {
+  SIDES,
   findItemById,
   findItemByReference,
   findShelf,
@@ -10,6 +11,8 @@ import {
   recordMovement,
 } from '../lib/store.js';
 
+// `other_site` est conservé tel quel en base ; côté interface il s'appelle
+// désormais « Hors PlanStock » depuis que les deux locaux sont gérés ici.
 const KINDS = ['physical', 'service', 'other_site'];
 const PREFIX_MIN_LENGTH = 3;
 const PREFIX_MAX_RESULTS = 8;
@@ -18,12 +21,12 @@ function readKind(value, fallback = 'physical') {
   if (value === undefined || value === null || value === '') return fallback;
   const kind = String(value);
   if (!KINDS.includes(kind)) {
-    throw badRequest('Type d’article invalide (attendu : Physique, Service ou Autre site).');
+    throw badRequest('Type d’article invalide (attendu : Physique, Service ou Hors PlanStock).');
   }
   return kind;
 }
 
-/** Un article Service ou Autre site n'a jamais d'emplacement physique. */
+/** Un article Service ou Hors PlanStock n'a jamais d'emplacement physique. */
 function isPhysical(kind) {
   return kind === 'physical';
 }
@@ -42,6 +45,15 @@ function readId(value, field) {
   return id;
 }
 
+/** Côté d'étagère : indication facultative, jamais obligatoire. */
+function readSide(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (!SIDES.includes(String(value))) {
+    throw badRequest('Côté invalide (attendu : gauche, centre ou droite).');
+  }
+  return String(value);
+}
+
 /**
  * Emplacement demandé : une étagère (`shelf_id`) ou une zone (`zone_id`),
  * jamais les deux. `undefined` si le corps n'en mentionne aucun.
@@ -53,8 +65,11 @@ function readLocation(db, body) {
   if (shelfId && zoneId) {
     throw badRequest('Choisissez soit une étagère, soit une zone, pas les deux.');
   }
-  if (shelfId) return findShelf(db, shelfId);
-  if (zoneId) return findZone(db, zoneId);
+  if (shelfId) return findShelf(db, shelfId, readSide(body.side));
+  if (zoneId) {
+    // Une zone n'a ni étagère ni côté : le champ est ignoré sans erreur.
+    return findZone(db, zoneId);
+  }
   return body.shelf_id === undefined && body.zone_id === undefined ? undefined : null;
 }
 
@@ -62,6 +77,7 @@ function locationColumns(location) {
   return {
     shelf_id: location?.kind === 'shelf' ? location.shelf_id : null,
     zone_id: location?.kind === 'zone' ? location.zone_id : null,
+    side: location?.kind === 'shelf' ? (location.side ?? null) : null,
   };
 }
 
@@ -69,35 +85,53 @@ export function createItemsRouter(db) {
   const router = Router();
 
   const insertLocation = () =>
-    db.prepare('INSERT INTO item_locations (item_id, shelf_id, zone_id) VALUES (?, ?, ?)');
+    db.prepare('INSERT INTO item_locations (item_id, shelf_id, zone_id, side) VALUES (?, ?, ?, ?)');
+
+  /** `?site_id=` restreint la liste au local demandé. */
+  function readSiteId(req) {
+    const siteId = Number(req.query.site_id);
+    return Number.isInteger(siteId) && siteId > 0 ? siteId : null;
+  }
 
   router.get('/', (req, res) => {
     const search = normalizeReference(req.query.q ?? '');
-    res.json(listItems(db, { search: search || null }));
+    res.json(listItems(db, { search: search || null, siteId: readSiteId(req) }));
   });
 
   /**
-   * Recherche depuis le bon de préparation : correspondance exacte d'abord,
-   * puis suggestions par préfixe (à partir de 3 caractères, 8 maximum).
+   * Recherche depuis le bon de préparation. La référence prime : correspondance
+   * exacte, puis suggestions par préfixe (à partir de 3 caractères, 8 maximum).
+   * Les correspondances de désignation viennent après, séparément, et ne sont
+   * jamais confondues avec une référence.
    */
   router.get('/search', (req, res) => {
     const raw = String(req.query.q ?? '');
     const normalized = normalizeReference(raw);
+    const siteId = readSiteId(req);
 
     if (!normalized) {
-      res.json({ query: raw, normalized: '', exact: null, matches: [] });
+      res.json({ query: raw, normalized: '', exact: null, matches: [], by_designation: [] });
       return;
     }
 
-    const exact = findItemByReference(db, normalized);
-    const matches =
-      normalized.length >= PREFIX_MIN_LENGTH
-        ? listItems(db, { search: normalized, limit: PREFIX_MAX_RESULTS })
-        : exact
-          ? [exact]
-          : [];
+    const exact = findItemByReference(db, normalized, siteId);
+    const longEnough = normalized.length >= PREFIX_MIN_LENGTH;
+    const matches = longEnough
+      ? listItems(db, { search: normalized, siteId, limit: PREFIX_MAX_RESULTS })
+      : exact
+        ? [exact]
+        : [];
 
-    res.json({ query: raw, normalized, exact, matches });
+    // Le texte tapé sert tel quel pour la désignation : « toner » ne se
+    // normalise pas comme une référence.
+    const known = new Set(matches.map((item) => item.id));
+    const byDesignation = longEnough
+      ? listItems(db, { designation: raw.trim(), siteId, limit: PREFIX_MAX_RESULTS }).filter(
+          (item) => !known.has(item.id),
+        )
+      : [];
+
+    res.json({ query: raw, normalized, exact, matches, by_designation: byDesignation });
   });
 
   router.get('/:id', (req, res) => {
@@ -124,7 +158,7 @@ export function createItemsRouter(db) {
       throw badRequest('Un article physique doit être rangé sur une étagère ou une zone.');
     }
     if (!isPhysical(kind) && location) {
-      throw badRequest('Un article Service ou Autre site n’a pas d’emplacement physique.');
+      throw badRequest('Un article Service ou Hors PlanStock n’a pas d’emplacement physique.');
     }
 
     const now = new Date().toISOString();
@@ -150,7 +184,7 @@ export function createItemsRouter(db) {
       const created = findItemById(db, Number(info.lastInsertRowid));
       if (location) {
         const columns = locationColumns(location);
-        insertLocation().run(created.id, columns.shelf_id, columns.zone_id);
+        insertLocation().run(created.id, columns.shelf_id, columns.zone_id, columns.side);
       }
       recordMovement(db, { item: created, user, action: 'create', to: location });
       return findItemById(db, created.id);
@@ -196,7 +230,10 @@ export function createItemsRouter(db) {
       throw badRequest('Un article physique doit être rangé sur une étagère ou une zone.');
     }
 
-    const locationChanged = (current?.code ?? null) !== (target?.code ?? null);
+    const locationChanged =
+      (current?.code ?? null) !== (target?.code ?? null) ||
+      (current?.side ?? null) !== (target?.side ?? null);
+    const movedElsewhere = (current?.code ?? null) !== (target?.code ?? null);
     const fieldsChanged =
       reference !== item.reference ||
       designation !== item.designation ||
@@ -224,13 +261,14 @@ export function createItemsRouter(db) {
         db.prepare('DELETE FROM item_locations WHERE item_id = ?').run(id);
         if (target) {
           const columns = locationColumns(target);
-          insertLocation().run(id, columns.shelf_id, columns.zone_id);
+          insertLocation().run(id, columns.shelf_id, columns.zone_id, columns.side);
         }
       }
 
       const next = findItemById(db, id);
       if (fieldsChanged) recordMovement(db, { item: next, user, action: 'update' });
-      if (locationChanged) {
+      // Un simple changement de côté sur la même étagère n'est pas un mouvement.
+      if (movedElsewhere) {
         recordMovement(db, { item: next, user, action: 'move', from: current, to: target });
       }
       return next;
@@ -246,7 +284,7 @@ export function createItemsRouter(db) {
     const item = findItemById(db, id);
 
     if (!isPhysical(item.kind)) {
-      throw badRequest('Un article Service ou Autre site n’a pas d’emplacement physique.');
+      throw badRequest('Un article Service ou Hors PlanStock n’a pas d’emplacement physique.');
     }
 
     const target = readLocation(db, req.body ?? {});
@@ -254,6 +292,15 @@ export function createItemsRouter(db) {
 
     const current = item.locations[0] ?? null;
     if (current?.code === target.code) {
+      // Même étagère : seul le côté peut avoir changé. Pas un mouvement.
+      if ((current.side ?? null) !== (target.side ?? null)) {
+        db.prepare('UPDATE item_locations SET side = ? WHERE item_id = ?').run(
+          target.side ?? null,
+          id,
+        );
+        res.json(findItemById(db, id));
+        return;
+      }
       res.json(item);
       return;
     }
@@ -261,7 +308,7 @@ export function createItemsRouter(db) {
     const updated = db.transaction(() => {
       db.prepare('DELETE FROM item_locations WHERE item_id = ?').run(id);
       const columns = locationColumns(target);
-      insertLocation().run(id, columns.shelf_id, columns.zone_id);
+      insertLocation().run(id, columns.shelf_id, columns.zone_id, columns.side);
       db.prepare('UPDATE items SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), id);
 
       const next = findItemById(db, id);

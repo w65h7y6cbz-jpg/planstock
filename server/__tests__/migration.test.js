@@ -123,8 +123,70 @@ describe('migration 003 : cases → étagères, ajout des zones', () => {
       .map((row) => row.name);
 
     expect(tables).toContain('shelves');
+    expect(tables).toContain('sites');
+    expect(tables).toContain('landmarks');
     expect(tables).not.toContain('slots');
     expect(db.pragma('foreign_key_check')).toHaveLength(0);
     db.close();
+  });
+});
+
+describe('migration 004 : deux locaux, côté d’étagère, repères', () => {
+  it('rattache le stock existant au premier local sans rien perdre', () => {
+    const file = path.join(workDir, 'planstock.db');
+
+    // --- Base au schéma précédent (un seul local implicite), avec du contenu
+    const ancienne = new Database(file);
+    ancienne.pragma('foreign_keys = ON');
+    applyMigrations(ancienne, partialMigrationsDir('003_shelves_and_zones.sql'));
+
+    const now = new Date().toISOString();
+    ancienne
+      .prepare('INSERT INTO users (id, first_name, active, created_at) VALUES (1, ?, 1, ?)')
+      .run('Daniel', now);
+    ancienne
+      .prepare("UPDATE settings SET value = '80' WHERE key = 'plan_width'")
+      .run();
+    ancienne
+      .prepare(
+        `INSERT INTO racks (id, code, kind, label, aisle, shelves_count, x, y, width, height, rotation, created_at)
+         VALUES (1, 3, 'rack', 'Rayon consommables', 'Allée B', 2, 10, 12, 30, 18, 0, ?)`,
+      )
+      .run(now);
+    ancienne.prepare('INSERT INTO shelves (id, rack_id, shelf_index) VALUES (1, 1, 1)').run();
+    ancienne
+      .prepare(
+        `INSERT INTO items (id, reference, reference_display, designation, kind, created_at, updated_at)
+         VALUES (1, 'UK707EL', 'UK707E/L', 'Toner noir', 'physical', ?, ?)`,
+      )
+      .run(now, now);
+    ancienne.prepare('INSERT INTO item_locations (item_id, shelf_id) VALUES (1, 1)').run();
+    ancienne.close();
+
+    // --- Mise à jour
+    const db = new Database(file);
+    db.pragma('foreign_keys = ON');
+    expect(applyMigrations(db)).toContain('004_sites_sides_landmarks.sql');
+
+    const sites = db.prepare('SELECT * FROM sites ORDER BY position').all();
+    expect(sites.map((site) => site.name)).toEqual(['Optimium', 'Sharp Center']);
+    // Les dimensions du plan quittent `settings` pour le premier local.
+    expect(sites[0].plan_width).toBe(80);
+    expect(db.prepare("SELECT value FROM settings WHERE key = 'plan_width'").get()).toBeUndefined();
+
+    // Tout le stock existant appartient au premier local.
+    expect(db.prepare('SELECT site_id FROM racks WHERE id = 1').get().site_id).toBe(sites[0].id);
+    expect(db.pragma('foreign_key_check')).toHaveLength(0);
+
+    const app = createApp(db);
+    return request(app)
+      .get('/api/items/search?q=uk707el')
+      .then(({ body }) => {
+        expect(body.exact.locations[0].code).toBe('R03-E1');
+        expect(body.exact.locations[0].site_name).toBe('Optimium');
+        // Le côté est facultatif : les emplacements existants n'en ont pas.
+        expect(body.exact.locations[0].side).toBeNull();
+        db.close();
+      });
   });
 });

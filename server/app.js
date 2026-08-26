@@ -3,6 +3,8 @@ import path from 'node:path';
 import express from 'express';
 import { HttpError } from './lib/http.js';
 import { createUsersRouter } from './routes/users.js';
+import { createSitesRouter } from './routes/sites.js';
+import { createLandmarksRouter } from './routes/landmarks.js';
 import { createRacksRouter } from './routes/racks.js';
 import { createItemsRouter } from './routes/items.js';
 import { createMovementsRouter } from './routes/movements.js';
@@ -25,6 +27,7 @@ export function createApp(db, options = {}) {
   app.get('/api/health', (req, res) => {
     const counts = {
       users: db.prepare('SELECT COUNT(*) AS n FROM users').get().n,
+      sites: db.prepare('SELECT COUNT(*) AS n FROM sites').get().n,
       racks: db.prepare('SELECT COUNT(*) AS n FROM racks').get().n,
       items: db.prepare('SELECT COUNT(*) AS n FROM items').get().n,
     };
@@ -33,6 +36,8 @@ export function createApp(db, options = {}) {
   });
 
   app.use('/api/users', createUsersRouter(db));
+  app.use('/api/sites', createSitesRouter(db));
+  app.use('/api/landmarks', createLandmarksRouter(db));
   app.use('/api/racks', createRacksRouter(db));
   app.use('/api/items', createItemsRouter(db));
   app.use('/api/movements', createMovementsRouter(db));

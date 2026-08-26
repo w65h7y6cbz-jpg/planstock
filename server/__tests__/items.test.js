@@ -302,10 +302,39 @@ describe('GET /api/export', () => {
     const response = await request(context.app).get('/api/export/csv');
     const lines = response.text.replace(/^﻿/, '').trim().split('\r\n');
 
-    expect(lines[0]).toBe('Référence;Désignation;Famille;Libellé famille;Type;Emplacement');
-    expect(lines).toContain('ARB123;Imprimante A3;;;Physique;R01-E2');
-    expect(lines).toContain('B39VLAT;Copieur B39;;;Physique;Z02');
-    expect(lines).toContain('DEPITUC;Redevance;;;Service;');
+    expect(lines[0]).toBe(
+      'Référence;Désignation;Famille;Libellé famille;Type;Local;Emplacement;Côté',
+    );
+    expect(lines).toContain('ARB123;Imprimante A3;;;Physique;Optimium;R01-E2;');
+    expect(lines).toContain('B39VLAT;Copieur B39;;;Physique;Optimium;Z02;');
+    // Un service n'a ni local ni emplacement.
+    expect(lines).toContain('DEPITUC;Redevance;;;Service;;;');
+  });
+
+  it('exporte le côté d’étagère quand il est renseigné', async () => {
+    const rack = await createRack(request, context.app);
+    await postItem({
+      reference: 'UK707E/L',
+      designation: 'Toner noir',
+      shelf_id: shelfIdOf(rack, 1),
+      side: 'right',
+    });
+
+    const response = await request(context.app).get('/api/export/csv');
+    expect(response.text).toContain(
+      `UK707E/L;Toner noir;;;Physique;Optimium;${rack.rack_code}-E1;Droite`,
+    );
+  });
+
+  it('limite l’export au local demandé', async () => {
+    const optimium = await createRack(request, context.app, { site_id: context.siteId });
+    const sharp = await createRack(request, context.app, { site_id: context.otherSiteId });
+    await postItem({ reference: 'ICI1', shelf_id: shelfIdOf(optimium, 1) });
+    await postItem({ reference: 'LABAS1', shelf_id: shelfIdOf(sharp, 1) });
+
+    const response = await request(context.app).get(`/api/export/csv?site_id=${context.siteId}`);
+    expect(response.text).toContain('ICI1');
+    expect(response.text).not.toContain('LABAS1');
   });
 
   it('exporte 20 articles en xlsx : une ligne d’en-têtes + 20 lignes', async () => {
@@ -333,7 +362,9 @@ describe('GET /api/export', () => {
       '',
       '',
       'Physique',
+      'Optimium',
       'R02-E1',
+      '',
     ]);
   });
 });

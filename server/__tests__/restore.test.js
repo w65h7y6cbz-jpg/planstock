@@ -6,6 +6,7 @@ import request from 'supertest';
 import { listBackups, restoreBackup, runStartupBackup } from '../backup.js';
 import { createApp } from '../app.js';
 import { openDatabase } from '../db.js';
+import { firstSiteId } from './helpers.js';
 
 let workDir;
 let backupsDir;
@@ -31,7 +32,7 @@ afterEach(() => {
 });
 
 const seedRack = () =>
-  request(app).post('/api/racks').send({ label: 'Rayon test', shelves_count: 2 });
+  request(app).post('/api/racks').send({ site_id: firstSiteId(db), label: 'Rayon test', shelves_count: 2 });
 
 describe('restauration d’une sauvegarde', () => {
   it('remet la base dans l’état de la copie', async () => {
@@ -148,12 +149,14 @@ describe('jeu de démonstration', () => {
 
     const response = await request(app).post('/api/demo').send({ user_id: userId });
     expect(response.status).toBe(201);
-    expect(response.body.racks).toBe(4);
+    // Quatre rayonnages à Optimium, deux à Sharp Center.
+    expect(response.body.racks).toBe(6);
     expect(response.body.items).toBeGreaterThan(15);
 
     const search = await request(app).get('/api/items/search?q=uk707el');
     expect(search.body.exact.reference_display).toBe('UK707E/L');
     expect(search.body.exact.locations[0].code).toBe('R03-E1');
+    expect(search.body.exact.locations[0].site_name).toBe('Optimium');
     expect(search.body.exact.family_label).toContain('TGC22');
 
     const { body: movements } = await request(app).get('/api/movements');

@@ -7,25 +7,36 @@ const ITEM_COLUMNS = `
 `;
 
 /**
- * Un emplacement est soit une étagère de rayonnage, soit une zone.
- * `COALESCE` ramène les deux cas au rayonnage/zone porteur.
+ * Colonnes décrivant un emplacement. Le rayonnage/zone porteur est ramené par
+ * `COALESCE`, et son local par la jointure sur `sites`.
  */
+const LOCATION_COLUMNS = `
+  item_locations.shelf_id,
+  item_locations.zone_id,
+  item_locations.side,
+  shelves.shelf_index,
+  racks.id     AS rack_id,
+  racks.code   AS rack_code,
+  racks.kind   AS rack_kind,
+  racks.label  AS rack_label,
+  racks.aisle  AS rack_aisle,
+  sites.id     AS site_id,
+  sites.code   AS site_code,
+  sites.name   AS site_name
+`;
+
 const LOCATION_QUERY = `
-  SELECT item_locations.item_id,
-         item_locations.shelf_id,
-         item_locations.zone_id,
-         shelves.shelf_index,
-         racks.id    AS rack_id,
-         racks.code  AS rack_code,
-         racks.kind  AS rack_kind,
-         racks.label AS rack_label,
-         racks.aisle AS rack_aisle
+  SELECT item_locations.item_id, ${LOCATION_COLUMNS}
     FROM item_locations
     LEFT JOIN shelves ON shelves.id = item_locations.shelf_id
     LEFT JOIN racks ON racks.id = COALESCE(shelves.rack_id, item_locations.zone_id)
+    LEFT JOIN sites ON sites.id = racks.site_id
    WHERE item_locations.item_id IN (SELECT value FROM json_each(?))
    ORDER BY racks.kind, racks.code, shelves.shelf_index
 `;
+
+/** Côtés admis d'une étagère. `null` = non précisé, cas le plus courant. */
+export const SIDES = ['left', 'center', 'right'];
 
 /** Emplacement enrichi de ses codes calculés. */
 export function decorateLocation(row) {
@@ -44,6 +55,11 @@ export function decorateLocation(row) {
     rack_label: row.rack_label,
     rack_aisle: row.rack_aisle ?? '',
     shelf_index: isShelf ? row.shelf_index : null,
+    // Indication facultative, jamais dans le code d'emplacement.
+    side: isShelf ? (row.side ?? null) : null,
+    site_id: row.site_id ?? null,
+    site_code: row.site_code ?? '',
+    site_name: row.site_name ?? '',
     short_code: isShelf ? formatShelfShortCode(row.shelf_index) : code,
     code,
   };
@@ -68,21 +84,54 @@ export function findItemById(db, id) {
   return attachLocations(db, [item])[0];
 }
 
-export function findItemByReference(db, reference) {
+/**
+ * Recherche exacte. Avec `siteId`, l'article n'est renvoyé que s'il est rangé
+ * dans ce local (ou nulle part) : la recherche ne franchit pas les locaux.
+ */
+export function findItemByReference(db, reference, siteId = null) {
   const item = db
-    .prepare(`SELECT ${ITEM_COLUMNS} FROM items WHERE items.reference = ?`)
-    .get(reference);
+    .prepare(
+      `SELECT ${ITEM_COLUMNS} FROM items
+        WHERE items.reference = ?${siteId ? ` AND ${SITE_FILTER}` : ''}`,
+    )
+    .get(...(siteId ? [reference, siteId] : [reference]));
   return item ? attachLocations(db, [item])[0] : null;
 }
 
-export function listItems(db, { search = null, limit = null } = {}) {
+/**
+ * Un article appartient au local de son emplacement. Les articles Service et
+ * Hors PlanStock n'en ont aucun : ils restent visibles depuis les deux locaux,
+ * sinon une référence de service serait déclarée introuvable selon l'écran.
+ */
+const SITE_FILTER = `(
+  EXISTS (
+    SELECT 1 FROM item_locations
+      LEFT JOIN shelves ON shelves.id = item_locations.shelf_id
+      JOIN racks ON racks.id = COALESCE(shelves.rack_id, item_locations.zone_id)
+     WHERE item_locations.item_id = items.id AND racks.site_id = ?
+  )
+  OR NOT EXISTS (SELECT 1 FROM item_locations WHERE item_locations.item_id = items.id)
+)`;
+
+export function listItems(db, { search = null, designation = null, siteId = null, limit = null } = {}) {
   let sql = `SELECT ${ITEM_COLUMNS} FROM items`;
+  const conditions = [];
   const params = [];
 
   if (search) {
-    sql += " WHERE items.reference LIKE ? ESCAPE '\\'";
+    conditions.push("items.reference LIKE ? ESCAPE '\\'");
     params.push(`${escapeLike(search)}%`);
   }
+  if (designation) {
+    conditions.push("items.designation LIKE ? ESCAPE '\\' COLLATE NOCASE");
+    params.push(`%${escapeLike(designation)}%`);
+  }
+  if (siteId) {
+    conditions.push(SITE_FILTER);
+    params.push(siteId);
+  }
+
+  if (conditions.length > 0) sql += ` WHERE ${conditions.join(' AND ')}`;
   sql += ' ORDER BY items.reference';
   if (limit) {
     sql += ' LIMIT ?';
@@ -97,19 +146,22 @@ export function escapeLike(value) {
   return String(value).replace(/[\\%_]/g, (char) => `\\${char}`);
 }
 
-/** Étagère avec son rayonnage et son code complet, ou 404. */
-export function findShelf(db, shelfId) {
+/** Étagère avec son rayonnage, son local et son code complet, ou 404. */
+export function findShelf(db, shelfId, side = null) {
   const row = db
     .prepare(
       `SELECT shelves.id AS shelf_id, NULL AS zone_id, shelves.shelf_index,
               racks.id AS rack_id, racks.code AS rack_code, racks.kind AS rack_kind,
-              racks.label AS rack_label, racks.aisle AS rack_aisle
-         FROM shelves JOIN racks ON racks.id = shelves.rack_id
+              racks.label AS rack_label, racks.aisle AS rack_aisle,
+              sites.id AS site_id, sites.code AS site_code, sites.name AS site_name
+         FROM shelves
+         JOIN racks ON racks.id = shelves.rack_id
+         JOIN sites ON sites.id = racks.site_id
         WHERE shelves.id = ?`,
     )
     .get(shelfId);
   if (!row) throw notFound('Étagère introuvable.');
-  return decorateLocation(row);
+  return decorateLocation({ ...row, side });
 }
 
 /** Zone avec son code, ou 404 si l'identifiant ne désigne pas une zone. */
@@ -118,17 +170,46 @@ export function findZone(db, zoneId) {
     .prepare(
       `SELECT NULL AS shelf_id, racks.id AS zone_id, NULL AS shelf_index,
               racks.id AS rack_id, racks.code AS rack_code, racks.kind AS rack_kind,
-              racks.label AS rack_label, racks.aisle AS rack_aisle
-         FROM racks WHERE racks.id = ? AND racks.kind = 'zone'`,
+              racks.label AS rack_label, racks.aisle AS rack_aisle,
+              sites.id AS site_id, sites.code AS site_code, sites.name AS site_name
+         FROM racks
+         JOIN sites ON sites.id = racks.site_id
+        WHERE racks.id = ? AND racks.kind = 'zone'`,
     )
     .get(zoneId);
   if (!row) throw notFound('Zone introuvable.');
   return decorateLocation(row);
 }
 
+/** Local, ou 404. */
+export function findSite(db, siteId) {
+  const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(siteId);
+  if (!site) throw notFound('Local introuvable.');
+  return site;
+}
+
+/** Locaux dans l'ordre d'affichage, avec ce qu'ils contiennent. */
+export function listSites(db) {
+  return db
+    .prepare(
+      `SELECT sites.*,
+              (SELECT COUNT(*) FROM racks
+                WHERE racks.site_id = sites.id AND racks.kind = 'rack') AS racks_count,
+              (SELECT COUNT(*) FROM racks
+                WHERE racks.site_id = sites.id AND racks.kind = 'zone') AS zones_count,
+              (SELECT COUNT(*) FROM item_locations
+                 LEFT JOIN shelves ON shelves.id = item_locations.shelf_id
+                 JOIN racks ON racks.id = COALESCE(shelves.rack_id, item_locations.zone_id)
+                WHERE racks.site_id = sites.id) AS items_count
+         FROM sites ORDER BY sites.position, sites.id`,
+    )
+    .all();
+}
+
 const SLOT_ITEM_COLUMNS = `
   items.id AS item_id, items.reference, items.reference_display,
-  items.designation, items.kind, items.family_code, items.family_label
+  items.designation, items.kind, items.family_code, items.family_label,
+  item_locations.side
 `;
 
 /** Étagères d'un rayonnage, de la plus haute (E1) à la plus basse, avec leurs articles. */
@@ -188,6 +269,7 @@ function toShelfItem(row) {
     kind: row.kind,
     family_code: row.family_code,
     family_label: row.family_label,
+    side: row.side ?? null,
   };
 }
 

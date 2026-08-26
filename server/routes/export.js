@@ -9,25 +9,39 @@ const HEADERS = [
   'Famille',
   'Libellé famille',
   'Type',
+  'Local',
   'Emplacement',
+  'Côté',
 ];
 
 const KIND_LABELS = {
   physical: 'Physique',
   service: 'Service',
-  other_site: 'Autre site',
+  other_site: 'Hors PlanStock',
 };
 
+const SIDE_LABELS = { left: 'Gauche', center: 'Centre', right: 'Droite' };
+
 /** Une ligne par article ; les emplacements multiples sont joints par « + ». */
-function exportRows(db) {
-  return listItems(db).map((item) => [
+function exportRows(db, siteId = null) {
+  const join = (values) => [...new Set(values.filter(Boolean))].join(' + ');
+
+  return listItems(db, { siteId }).map((item) => [
     item.reference_display,
     item.designation,
     item.family_code ?? '',
     item.family_label ?? '',
     KIND_LABELS[item.kind] ?? item.kind,
+    join(item.locations.map((location) => location.site_name)),
     item.locations.map((location) => location.code).join(' + '),
+    join(item.locations.map((location) => SIDE_LABELS[location.side])),
   ]);
+}
+
+/** `?site_id=` limite l'export au local demandé. */
+function readSiteId(req) {
+  const siteId = Number(req.query.site_id);
+  return Number.isInteger(siteId) && siteId > 0 ? siteId : null;
 }
 
 function fileStamp(date = new Date()) {
@@ -45,7 +59,7 @@ export function createExportRouter(db) {
   const router = Router();
 
   router.get('/csv', (req, res) => {
-    const lines = [HEADERS, ...exportRows(db)]
+    const lines = [HEADERS, ...exportRows(db, readSiteId(req))]
       .map((row) => row.map(csvCell).join(';'))
       .join('\r\n');
 
@@ -67,17 +81,19 @@ export function createExportRouter(db) {
 
       sheet.addRow(HEADERS);
       sheet.getRow(1).font = { bold: true };
-      for (const row of exportRows(db)) sheet.addRow(row);
+      for (const row of exportRows(db, readSiteId(req))) sheet.addRow(row);
 
       sheet.columns = [
         { width: 18 },
         { width: 46 },
         { width: 10 },
         { width: 34 },
-        { width: 14 },
         { width: 16 },
+        { width: 16 },
+        { width: 16 },
+        { width: 10 },
       ];
-      sheet.autoFilter = { from: 'A1', to: 'F1' };
+      sheet.autoFilter = { from: 'A1', to: 'H1' };
 
       const buffer = await workbook.xlsx.writeBuffer();
       res.setHeader(
