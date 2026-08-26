@@ -265,3 +265,36 @@
   stroke-width: 0.35;
   stroke-linecap: round;
 }
+
+/* ---- Murs modifiables ---- */
+/* Les coins du local. Ils ne s'affichent qu'en mode murs, où les meubles sont
+   figés : on ne déplace pas une pièce et son contenu du même geste. */
+.wallEditor {
+  cursor: default;
+}
+
+.wallCorner {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 0.7;
+  cursor: grab;
+}
+
+.wallCorner:active {
+  cursor: grabbing;
+}
+
+/* Le « + » au milieu d'un pan de mur : c'est là qu'un coin s'ajoute. */
+.wallAdd {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 0.4;
+  stroke-dasharray: 0.8 0.8;
+  cursor: copy;
+  opacity: 0.55;
+  transition: opacity var(--transition);
+}
+
+.wallAdd:hover {
+  opacity: 1;
+}

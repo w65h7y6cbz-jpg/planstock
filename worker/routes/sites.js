@@ -39,6 +39,44 @@ function readDimension(value, fallback, field) {
   return Math.round(number * 100) / 100;
 }
 
+/**
+ * Contour du local : la liste de ses coins, `[[x, y], …]` en unités de plan.
+ *
+ * Vide = rectangle, et c'est le défaut. `plan_width` × `plan_height` reste le
+ * cadre de référence — cadrage de la vue et bornes de déplacement d'un meuble ;
+ * le contour ne décrit que la forme des murs à l'intérieur.
+ *
+ * Un contour mal formé rendrait le plan illisible sans que rien ne le signale,
+ * d'où une vérification stricte plutôt qu'un enregistrement optimiste.
+ */
+const MAX_CORNERS = 40;
+
+function readOutline(value, fallback) {
+  if (value === undefined) return fallback;
+  if (value === null || value === '') return '';
+
+  const points = Array.isArray(value) ? value : null;
+  if (!points) throw badRequest('Le contour doit être une liste de coins.');
+  // Deux points ne délimitent aucune surface : c'est un trait, pas une pièce.
+  if (points.length < 3) {
+    throw badRequest('Un contour demande au moins trois coins.');
+  }
+  if (points.length > MAX_CORNERS) {
+    throw badRequest(`Un contour ne peut pas dépasser ${MAX_CORNERS} coins.`);
+  }
+
+  const cleaned = points.map((point) => {
+    const pair = Array.isArray(point) ? point : [point?.x, point?.y];
+    const [x, y] = pair.map(Number);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 100 || y < 0 || y > 100) {
+      throw badRequest('Chaque coin du contour doit tenir entre 0 et 100.');
+    }
+    return [Math.round(x * 100) / 100, Math.round(y * 100) / 100];
+  });
+
+  return JSON.stringify(cleaned);
+}
+
 export const sites = new Hono();
 
 sites.get('/', async (c) => c.json(await listSites(c.get('db'))));
@@ -70,6 +108,7 @@ sites.patch('/:id', async (c) => {
     logo: readLogo(payload.logo, site.logo),
     plan_width: readDimension(payload.plan_width, site.plan_width, 'La largeur du plan'),
     plan_height: readDimension(payload.plan_height, site.plan_height, 'La hauteur du plan'),
+    outline: readOutline(payload.outline, site.outline),
   };
 
   // Rétrécir le plan sous un emplacement déjà posé le ferait sortir du local.
@@ -87,12 +126,15 @@ sites.patch('/:id', async (c) => {
   }
 
   await db.run(
-    'UPDATE sites SET name = ?, accent = ?, logo = ?, plan_width = ?, plan_height = ? WHERE id = ?',
+    `UPDATE sites SET name = ?, accent = ?, logo = ?, plan_width = ?, plan_height = ?,
+                      outline = ?
+      WHERE id = ?`,
     next.name,
     next.accent,
     next.logo,
     next.plan_width,
     next.plan_height,
+    next.outline,
     id,
   );
 

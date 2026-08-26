@@ -221,3 +221,93 @@ describe('repères du local', () => {
     expect(response.body.error).toContain('Type de repère');
   });
 });
+
+describe('contour du local', () => {
+  it('part d’un contour vide : le local est rectangulaire', async () => {
+    const { body: sites } = await api('/api/sites');
+    expect(sites.every((site) => site.outline === '')).toBe(true);
+  });
+
+  it('enregistre un local en L', async () => {
+    const enL = [
+      [0, 0],
+      [100, 0],
+      [100, 40],
+      [45, 40],
+      [45, 100],
+      [0, 100],
+    ];
+    const { status, body } = await api(`/api/sites/${context.siteId}`, {
+      method: 'PATCH',
+      json: { outline: enL },
+    });
+
+    expect(status).toBe(200);
+    expect(JSON.parse(body.outline)).toEqual(enL);
+  });
+
+  it('refuse un contour qui ne délimite aucune surface', async () => {
+    const { status, body } = await api(`/api/sites/${context.siteId}`, {
+      method: 'PATCH',
+      json: {
+        outline: [
+          [0, 0],
+          [50, 50],
+        ],
+      },
+    });
+
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/trois coins/);
+  });
+
+  it('refuse un coin hors du plan', async () => {
+    const { status } = await api(`/api/sites/${context.siteId}`, {
+      method: 'PATCH',
+      json: {
+        outline: [
+          [0, 0],
+          [140, 0],
+          [0, 40],
+        ],
+      },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  it('revient au rectangle avec un contour vide', async () => {
+    await api(`/api/sites/${context.siteId}`, {
+      method: 'PATCH',
+      json: {
+        outline: [
+          [0, 0],
+          [80, 0],
+          [80, 80],
+        ],
+      },
+    });
+
+    const { body } = await api(`/api/sites/${context.siteId}`, {
+      method: 'PATCH',
+      json: { outline: '' },
+    });
+    expect(body.outline).toBe('');
+  });
+
+  it('laisse le contour tranquille quand on ne le mentionne pas', async () => {
+    const contour = [
+      [0, 0],
+      [90, 0],
+      [90, 90],
+    ];
+    await api(`/api/sites/${context.siteId}`, { method: 'PATCH', json: { outline: contour } });
+
+    // Renommer le local ne doit pas effacer ses murs.
+    const { body } = await api(`/api/sites/${context.siteId}`, {
+      method: 'PATCH',
+      json: { name: 'Optimium Nouméa' },
+    });
+    expect(JSON.parse(body.outline)).toEqual(contour);
+  });
+});

@@ -22,6 +22,8 @@ interface RacksViewProps {
   onUpdate: (id: number, payload: RackPayload) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   onLandmarksChanged: () => Promise<void>;
+  /** Recharge le local après un changement de murs. */
+  onSiteChanged: () => Promise<void>;
 }
 
 export function RacksView({
@@ -34,8 +36,10 @@ export function RacksView({
   onUpdate,
   onDelete,
   onLandmarksChanged,
+  onSiteChanged,
 }: RacksViewProps) {
   const [selected, setSelected] = useState<number | null>(null);
+  const [wallsMode, setWallsMode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -59,7 +63,7 @@ export function RacksView({
         {racks.length === 0 && landmarks.length === 0 ? (
           <p className={styles.empty}>
             Le local est vide. Ajoute un premier rayonnage : il apparaîtra ici, tu le feras glisser
-            à sa place.
+            à sa place. Tu peux aussi commencer par dessiner les murs.
           </p>
         ) : (
           <PlanView
@@ -67,8 +71,18 @@ export function RacksView({
             landmarks={landmarks}
             planWidth={site.plan_width}
             planHeight={site.plan_height}
+            outline={site.outline}
             selectedRackId={selected}
-            editable={canEdit}
+            // Les meubles sont figés pendant qu'on redessine les murs : on ne
+            // déplace pas une pièce et son contenu du même geste.
+            editable={canEdit && !wallsMode}
+            wallsEditable={canEdit && wallsMode}
+            onOutlineChange={(corners) =>
+              void guard(async () => {
+                await api.sites.update(site.id, { outline: corners });
+                await onSiteChanged();
+              })
+            }
             onSelectRack={(rack) => setSelected(rack.id)}
             onGeometryChange={(rack, box) => void guard(() => onUpdate(rack.id, box))}
             onLandmarkChange={(landmark, box) =>
@@ -87,6 +101,44 @@ export function RacksView({
           <p className={shared.warning}>
             Choisis ton prénom en haut à droite pour modifier le plan.
           </p>
+        ) : null}
+
+        <div className={styles.addRow}>
+          <button
+            type="button"
+            className={wallsMode ? shared.primary : shared.button}
+            disabled={!canEdit || busy}
+            onClick={() => setWallsMode((current) => !current)}
+          >
+            {wallsMode ? '✓ Murs — terminer' : '▱ Modifier les murs'}
+          </button>
+        </div>
+
+        {wallsMode ? (
+          <p className={shared.hint}>
+            Fais glisser un <strong>coin</strong> pour déplacer un mur. Le{' '}
+            <strong>+</strong> au milieu d’un pan ajoute un coin — c’est ainsi qu’on creuse un
+            renfoncement ou qu’on coupe un angle. <strong>Double-clic</strong> sur un coin le
+            retire. Les meubles ne bougent pas tant que ce mode est actif.
+          </p>
+        ) : null}
+
+        {wallsMode && site.outline ? (
+          <div className={shared.buttons}>
+            <button
+              type="button"
+              className={shared.button}
+              disabled={!canEdit || busy}
+              onClick={() =>
+                void guard(async () => {
+                  await api.sites.update(site.id, { outline: '' });
+                  await onSiteChanged();
+                })
+              }
+            >
+              Revenir à un rectangle
+            </button>
+          </div>
         ) : null}
 
         <div className={styles.addRow}>

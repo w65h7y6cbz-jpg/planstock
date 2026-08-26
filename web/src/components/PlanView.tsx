@@ -68,6 +68,28 @@ function rotatePoint(px: number, py: number, cx: number, cy: number, degrees: nu
   return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
 }
 
+/**
+ * Coins des murs. Un contour vide — le cas de tous les locaux tant qu'on ne l'a
+ * pas dessiné — vaut le rectangle du cadre. Un contour illisible en base ne doit
+ * pas faire disparaître le plan : on retombe sur le rectangle sans rien dire.
+ */
+function readCorners(outline: string, width: number, height: number): [number, number][] {
+  const rectangle: [number, number][] = [
+    [0, 0],
+    [width, 0],
+    [width, height],
+    [0, height],
+  ];
+  if (!outline) return rectangle;
+  try {
+    const parsed: unknown = JSON.parse(outline);
+    if (!Array.isArray(parsed) || parsed.length < 3) return rectangle;
+    return parsed.map((point) => [Number((point as number[])[0]), Number((point as number[])[1])]);
+  } catch {
+    return rectangle;
+  }
+}
+
 /** Centre d'une boîte : c'est autour de lui que tout pivote. */
 const centreOf = (box: Box) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
 
@@ -83,6 +105,11 @@ interface PlanViewProps {
   landmarks: Landmark[];
   planWidth: number;
   planHeight: number;
+  /** Coins des murs en JSON, ou vide pour un local rectangulaire. */
+  outline?: string;
+  /** Mode murs : les coins du local se déplacent, les meubles sont figés. */
+  wallsEditable?: boolean;
+  onOutlineChange?: (corners: [number, number][]) => void;
   /** Meuble sur lequel la vue se centre, ou `null` pour le local entier. */
   focusRackId?: number | null;
   /** Meuble ouvert dans le panneau latéral. */
@@ -109,6 +136,9 @@ export function PlanView({
   landmarks,
   planWidth,
   planHeight,
+  outline = '',
+  wallsEditable = false,
+  onOutlineChange,
   focusRackId = null,
   selectedRackId = null,
   route = [],
@@ -128,6 +158,16 @@ export function PlanView({
     grabX: number;
     grabY: number;
   } | null>(null);
+
+  const corners = useMemo(
+    () => readCorners(outline, planWidth, planHeight),
+    [outline, planWidth, planHeight],
+  );
+  // Coins en cours de déplacement : on ne réenregistre qu'au relâchement.
+  const [draftCorners, setDraftCorners] = useState<[number, number][] | null>(null);
+  const cornerRef = useRef<number | null>(null);
+  const shownCorners = draftCorners ?? corners;
+  const pointsAttribute = shownCorners.map(([x, y]) => `${x},${y}`).join(' ');
 
   const full = useMemo<ViewBox>(
     () => ({
@@ -200,7 +240,31 @@ export function PlanView({
     setGhost({ kind, id, ...box });
   }
 
+  /** Un coin des murs suit le doigt ; l'enregistrement attend le relâchement. */
+  function startCornerDrag(event: ReactPointerEvent, index: number) {
+    event.stopPropagation();
+    (event.target as Element).setPointerCapture?.(event.pointerId);
+    cornerRef.current = index;
+    setDraftCorners(shownCorners);
+  }
+
   function onPointerMove(event: ReactPointerEvent) {
+    if (cornerRef.current !== null) {
+      const point = toPlanPoint(event);
+      if (!point) return;
+      const index = cornerRef.current;
+      setDraftCorners((current) => {
+        const base = current ?? corners;
+        const next = [...base];
+        next[index] = [
+          Math.round(clamp(point.x, 0, 100) * 10) / 10,
+          Math.round(clamp(point.y, 0, 100) * 10) / 10,
+        ];
+        return next;
+      });
+      return;
+    }
+
     const drag = dragRef.current;
     const point = drag ? toPlanPoint(event) : null;
     if (!drag || !point) return;
@@ -260,6 +324,13 @@ export function PlanView({
   }
 
   function endDrag() {
+    if (cornerRef.current !== null) {
+      cornerRef.current = null;
+      if (draftCorners) onOutlineChange?.(draftCorners);
+      setDraftCorners(null);
+      return;
+    }
+
     const drag = dragRef.current;
     dragRef.current = null;
     if (drag && ghost) {
@@ -310,9 +381,9 @@ export function PlanView({
       role="img"
       aria-label="Plan du local"
       preserveAspectRatio="xMidYMid meet"
-      onPointerMove={editable ? onPointerMove : undefined}
-      onPointerUp={editable ? endDrag : undefined}
-      onPointerCancel={editable ? endDrag : undefined}
+      onPointerMove={editable || wallsEditable ? onPointerMove : undefined}
+      onPointerUp={editable || wallsEditable ? endDrag : undefined}
+      onPointerCancel={editable || wallsEditable ? endDrag : undefined}
     >
       <defs>
         <pattern id="plan-floor-grid" width="10" height="10" patternUnits="userSpaceOnUse">
@@ -320,24 +391,24 @@ export function PlanView({
         </pattern>
       </defs>
 
-      {/* Sol et murs */}
-      <rect className={styles.floor} x="0" y="0" width={planWidth} height={planHeight} />
+      {/* Sol et murs, au contour réel du local. La grille est découpée à la
+          même forme : déborder trahirait un rectangle sous les murs. */}
+      <defs>
+        <clipPath id="plan-floor-clip">
+          <polygon points={pointsAttribute} />
+        </clipPath>
+      </defs>
+      <polygon className={styles.floor} points={pointsAttribute} />
       <rect
         x="0"
         y="0"
         width={planWidth}
         height={planHeight}
         fill="url(#plan-floor-grid)"
+        clipPath="url(#plan-floor-clip)"
         pointerEvents="none"
       />
-      <rect
-        className={styles.wall}
-        x="0"
-        y="0"
-        width={planWidth}
-        height={planHeight}
-        fill="none"
-      />
+      <polygon className={styles.wall} points={pointsAttribute} fill="none" />
 
       {landmarks.map((landmark) => (
         <LandmarkShape
@@ -391,6 +462,49 @@ export function PlanView({
           </text>
         </g>
       ))}
+      {/* Murs modifiables : un coin par poignée, un « + » au milieu de chaque
+          pan pour en ajouter un. Double-clic sur un coin pour le retirer.
+          Dessinés en dernier, donc au-dessus des meubles : sur un local
+          rectangulaire, le « + » du haut tombe pile sous la porte d'entrée, et
+          se retrouvait inatteignable. */}
+      {wallsEditable ? (
+        <g className={styles.wallEditor}>
+          {shownCorners.map(([x, y], index) => {
+            const [nextX, nextY] = shownCorners[(index + 1) % shownCorners.length];
+            return (
+              <g key={index}>
+                <circle
+                  className={styles.wallAdd}
+                  cx={(x + nextX) / 2}
+                  cy={(y + nextY) / 2}
+                  r="1.5"
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    const next = [...shownCorners];
+                    next.splice(index + 1, 0, [(x + nextX) / 2, (y + nextY) / 2]);
+                    onOutlineChange?.(next);
+                  }}
+                />
+                <circle
+                  className={styles.wallCorner}
+                  cx={x}
+                  cy={y}
+                  r="2.2"
+                  onPointerDown={(event) => startCornerDrag(event, index)}
+                  onDoubleClick={(event) => {
+                    event.stopPropagation();
+                    // Trois coins font la pièce la plus simple : en dessous, il
+                    // n'y a plus de surface, seulement un trait.
+                    if (shownCorners.length <= 3) return;
+                    onOutlineChange?.(shownCorners.filter((_, at) => at !== index));
+                  }}
+                />
+              </g>
+            );
+          })}
+        </g>
+      ) : null}
+
     </svg>
   );
 }
