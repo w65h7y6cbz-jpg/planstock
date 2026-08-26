@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { api, createContext, createRack, createZone, shelfIdOf } from './helpers.js';
+import { api, createContext, createRack, createZone, shelfIdOf, anonymousApi } from './helpers.js';
 
 let context;
 let rack;
@@ -76,7 +76,10 @@ describe('POST /api/items', () => {
   });
 
   it('refuse toute modification sans prénom sélectionné', async () => {
-    const response = await api('/api/items', { method: 'POST', json: { reference: 'ARB123', shelf_id: shelfIdOf(rack, 1) } });
+    const response = await anonymousApi('/api/items', {
+      method: 'POST',
+      json: { reference: 'ARB123', shelf_id: shelfIdOf(rack, 1) },
+    });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toContain('prénom');
@@ -216,7 +219,10 @@ describe('PUT /api/items/:id/location', () => {
 
   it('refuse de déplacer un article sans prénom sélectionné', async () => {
     const created = await postItem({ reference: 'ARB123', shelf_id: shelfIdOf(rack, 1) });
-    const response = await api(`/api/items/${created.body.id}/location`, { method: 'PUT', json: { shelf_id: shelfIdOf(rack, 2) } });
+    const response = await anonymousApi(`/api/items/${created.body.id}/location`, {
+      method: 'PUT',
+      json: { shelf_id: shelfIdOf(rack, 2) },
+    });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toContain('prénom');

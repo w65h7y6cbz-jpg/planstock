@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { api, createContext, createRack, shelfIdOf } from './helpers.js';
+import { api, createContext, createRack, shelfIdOf, anonymousApi } from './helpers.js';
 
 let context;
 
@@ -121,7 +121,7 @@ describe('sauvegardes', () => {
   });
 
   it('exige un prénom avant de restaurer', async () => {
-    const response = await api('/api/backups/restore', {
+    const response = await anonymousApi('/api/backups/restore', {
       method: 'POST',
       json: { backup: { format: 'planstock-backup-1', tables: {} } },
     });

@@ -14,6 +14,8 @@ const TABLES_CHILDREN_FIRST = [
   'movements',
   'item_locations',
   'items',
+  // Avant `customers` et `users` : il référence les deux.
+  'user_customers',
   'customers',
   'landmarks',
   'shelves',
@@ -21,6 +23,7 @@ const TABLES_CHILDREN_FIRST = [
   'users',
   'sites',
   'settings',
+  'app_secrets',
 ];
 
 beforeEach(async () => {
