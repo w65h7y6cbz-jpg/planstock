@@ -152,6 +152,25 @@ function siteFilter(customerId) {
 const siteFilterParams = (siteId, customerId) => [siteId, ...ownerParams(customerId)];
 
 /**
+ * Écarte les articles qui ne vivent que dans un local masqué.
+ *
+ * Sans local demandé, une liste ramène tout — et ramènerait donc les articles
+ * du local de démonstration. Un export du stock remis à la direction se
+ * retrouverait avec trente références inventées au milieu des vraies. Un
+ * article sans emplacement, lui, appartient à tout le monde : il reste.
+ */
+const VISIBLE_ONLY = `(
+  NOT EXISTS (SELECT 1 FROM item_locations WHERE item_locations.item_id = items.id)
+  OR EXISTS (
+    SELECT 1 FROM item_locations
+      LEFT JOIN shelves ON shelves.id = item_locations.shelf_id
+      JOIN racks ON racks.id = COALESCE(shelves.rack_id, item_locations.zone_id)
+      JOIN sites ON sites.id = racks.site_id
+     WHERE item_locations.item_id = items.id AND sites.hidden = 0
+  )
+)`;
+
+/**
  * Recherche exacte. Avec `siteId`, l'article n'est renvoyé que s'il est rangé
  * dans ce local (ou nulle part) : la recherche ne franchit pas les locaux.
  * Avec `customerId`, elle ne regarde que le sous-stock de ce client.
@@ -191,6 +210,9 @@ export async function listItems(
   if (siteId) {
     conditions.push(siteFilter(customerId));
     params.push(...siteFilterParams(siteId, customerId));
+  } else {
+    // Aucun local demandé : le local de démonstration ne s'invite pas.
+    conditions.push(VISIBLE_ONLY);
   }
 
   if (conditions.length > 0) sql += ` WHERE ${conditions.join(' AND ')}`;
@@ -250,9 +272,15 @@ export async function findSite(db, siteId) {
   return site;
 }
 
-/** Locaux dans l'ordre d'affichage, avec ce qu'ils contiennent. */
-export function listSites(db) {
-  return db.all(
+/**
+ * Locaux dans l'ordre d'affichage, avec ce qu'ils contiennent.
+ *
+ * Le local de démonstration est masqué par défaut : l'écran de choix reste
+ * celui que l'équipe connaît. `includeHidden` le fait apparaître, et c'est
+ * l'adresse `?demo` qui le demande.
+ */
+export async function listSites(db, { includeHidden = false } = {}) {
+  const rows = await db.all(
     `SELECT sites.*,
             (SELECT COUNT(*) FROM racks
               WHERE racks.site_id = sites.id AND racks.kind = 'rack') AS racks_count,
@@ -262,8 +290,11 @@ export function listSites(db) {
                LEFT JOIN shelves ON shelves.id = item_locations.shelf_id
                JOIN racks ON racks.id = COALESCE(shelves.rack_id, item_locations.zone_id)
               WHERE racks.site_id = sites.id) AS items_count
-       FROM sites ORDER BY sites.position, sites.id`,
+       FROM sites
+       ${includeHidden ? '' : 'WHERE sites.hidden = 0'}
+       ORDER BY sites.position, sites.id`,
   );
+  return rows.map((row) => ({ ...row, hidden: Boolean(row.hidden) }));
 }
 
 const SHELF_ITEM_COLUMNS = `

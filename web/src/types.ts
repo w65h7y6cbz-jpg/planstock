@@ -9,10 +9,10 @@ export type RackKind = 'rack' | 'zone';
 /** Côté d'une étagère, indication facultative pour affiner la recherche à l'œil. */
 export type Side = 'left' | 'center' | 'right';
 
-/** Un des deux locaux couverts par l'application. */
+/** Un local couvert par l'application. */
 export interface Site {
   id: number;
-  /** `optimium`, `sharp-center` */
+  /** `optimium`, `sharp-center`, `demo` */
   code: string;
   name: string;
   /** Couleur d'accent du local, en hexadécimal. */
@@ -27,6 +27,12 @@ export interface Site {
    * `plan_width` × `plan_height` ; le contour ne décrit que la forme dedans.
    */
   outline: string;
+  /**
+   * Absent de l'écran de choix du local. C'est le cas du local de
+   * démonstration : il ne s'ouvre que par l'adresse `?demo`, pour que l'équipe
+   * garde le matin l'écran à deux tuiles qu'elle connaît.
+   */
+  hidden: boolean;
   racks_count: number;
   zones_count: number;
   items_count: number;

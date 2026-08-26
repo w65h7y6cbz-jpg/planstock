@@ -154,7 +154,10 @@ export const SearchHome = forwardRef<SearchHandle, SearchHomeProps>(function Sea
         role="search"
       >
         {customers.length > 0 ? (
-          <div className={`${styles.stockRow} ${customerId ? styles.stockRowOn : ''}`}>
+          <div
+            className={`${styles.stockRow} ${customerId ? styles.stockRowOn : ''}`}
+            data-tour="stocks"
+          >
             <label className={styles.stockLabel} htmlFor={stockId}>
               Chercher dans
             </label>
@@ -179,7 +182,7 @@ export const SearchHome = forwardRef<SearchHandle, SearchHomeProps>(function Sea
           </div>
         ) : null}
 
-        <div className={`${styles.field} ${open ? styles.fieldOpen : ''}`}>
+        <div className={`${styles.field} ${open ? styles.fieldOpen : ''}`} data-tour="recherche">
           <SearchIcon />
           <input
             ref={inputRef}

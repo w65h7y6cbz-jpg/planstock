@@ -90,7 +90,12 @@ export function TopBar({
       </button>
 
       <div className={styles.actions}>
-        <button type="button" className={styles.action} onClick={onOpenPlan}>
+        <button
+          type="button"
+          className={styles.action}
+          data-tour="plan"
+          onClick={onOpenPlan}
+        >
           <PlanIcon />
           Plan du local
           <kbd className={styles.kbd}>F2</kbd>
@@ -104,6 +109,7 @@ export function TopBar({
         <button
           type="button"
           className={`${styles.action} ${pickPending > 0 ? styles.actionLive : ''}`}
+          data-tour="liste"
           onClick={onOpenPickList}
           aria-label={`Liste de préparation, ${pickPending} article(s) à prélever`}
         >
@@ -130,6 +136,7 @@ export function TopBar({
           <button
             type="button"
             className={styles.user}
+            data-tour="prenom"
             onClick={() => setOpenMenu((current) => (current === 'user' ? null : 'user'))}
             aria-expanded={openMenu === 'user'}
             aria-haspopup="menu"
@@ -196,6 +203,7 @@ export function TopBar({
           <button
             type="button"
             className={styles.icon}
+            data-tour="reglages"
             onClick={() => setOpenMenu((current) => (current === 'settings' ? null : 'settings'))}
             aria-expanded={openMenu === 'settings'}
             aria-haspopup="menu"

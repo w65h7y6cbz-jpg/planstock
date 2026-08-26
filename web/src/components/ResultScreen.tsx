@@ -94,7 +94,7 @@ export function ResultScreen({ outcome, shelvesCount, onOpenPlan, onNext }: Resu
 
   return (
     <main className={styles.screen}>
-      <div className={`${styles.result} ${flash ? styles.flash : ''}`}>
+      <div className={`${styles.result} ${flash ? styles.flash : ''}`} data-tour="resultat">
         <div className={styles.left}>
           <p className={styles.reference}>{item.reference_display}</p>
 

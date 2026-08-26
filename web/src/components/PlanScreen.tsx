@@ -161,7 +161,7 @@ export function PlanScreen({
         </div>
 
         <div className={styles.body}>
-          <div className={styles.plan}>
+          <div className={styles.plan} data-tour="planLocal">
             {racks.length === 0 ? (
               <p className={styles.empty}>
                 Ce local n’a encore aucun rayonnage. Ouvre « Rayonnages et zones » pour le dessiner.

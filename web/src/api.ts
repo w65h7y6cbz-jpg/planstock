@@ -158,7 +158,8 @@ export const api = {
   },
 
   sites: {
-    list: () => request<Site[]>('/sites'),
+    /** `includeHidden` ajoute le local de démonstration, absent par défaut. */
+    list: (includeHidden = false) => request<Site[]>(`/sites${includeHidden ? '?hidden=1' : ''}`),
     update: (
       id: number,
       changes: {
@@ -300,6 +301,21 @@ export const api = {
         method: 'POST',
         ...json({ user_id: userId }),
       }),
+    /**
+     * Remet le local « Démo » à neuf. Destructif pour ce local seulement :
+     * Optimium et Sharp Center n'ont aucune ligne en commun avec lui.
+     */
+    resetSite: (userId: number) =>
+      request<{
+        site_id: number;
+        racks: number;
+        zones: number;
+        items: number;
+        customers: number;
+        reserved: number;
+        /** Références laissées au vrai stock, donc absentes de la démo. */
+        skipped: string[];
+      }>('/demo/site', { method: 'POST', ...json({ user_id: userId }) }),
   },
 
   /** Le CSV est produit par le Worker ; le .xlsx est assemblé par le navigateur. */
