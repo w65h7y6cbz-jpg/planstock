@@ -5,6 +5,7 @@ dist/
 
 # Base de données locale et sauvegardes : jamais versionnées
 data/*.db
-data/*.db-journal
+data/*.db-shm
+data/*.db-wal
 data/backups/*
 !data/backups/.gitkeep

@@ -8,12 +8,21 @@
     "node": ">=20"
   },
   "scripts": {
-    "postinstall": "npm --prefix web install",
+    "postinstall": "node scripts/postinstall.mjs",
     "build": "npm --prefix web run build",
     "start": "node server/index.js",
     "dev": "node server/index.js",
     "test": "npm run test:server && npm run test:web",
-    "test:server": "echo \"(tests serveur — étape 2)\"",
+    "test:server": "vitest run",
     "test:web": "echo \"(tests front — étape 5)\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.1",
+    "vitest": "^3.2.4"
   }
 }
