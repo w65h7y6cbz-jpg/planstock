@@ -11,6 +11,15 @@ import { findSite } from '../lib/store.js';
 const KINDS = ['door', 'bench'];
 const DEFAULT_LABELS = { door: 'Entrée', bench: 'Établi' };
 
+/** Angle en degrés, ramené dans [0, 360[ — une porte se pose rarement d'équerre. */
+function readAngle(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw badRequest('L’angle doit être un nombre de degrés.');
+  const wrapped = ((number % 360) + 360) % 360;
+  return Math.round(wrapped * 10) / 10;
+}
+
 function readKind(value) {
   const kind = String(value ?? '');
   if (!KINDS.includes(kind)) {
@@ -47,8 +56,8 @@ landmarks.post('/', async (c) => {
   const isDoor = kind === 'door';
 
   const { lastInsertRowid } = await db.run(
-    `INSERT INTO landmarks (site_id, kind, label, x, y, width, height, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO landmarks (site_id, kind, label, x, y, width, height, angle, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     site.id,
     kind,
     String(payload.label ?? DEFAULT_LABELS[kind]).trim(),
@@ -56,6 +65,7 @@ landmarks.post('/', async (c) => {
     readPercent(payload.y, 4, 'La position Y'),
     readPercent(payload.width, isDoor ? 8 : 14, 'La largeur'),
     readPercent(payload.height, isDoor ? 3 : 6, 'La hauteur'),
+    readAngle(payload.angle, 0),
     new Date().toISOString(),
   );
 
@@ -71,12 +81,14 @@ landmarks.patch('/:id', async (c) => {
   if (!landmark) throw notFound('Repère introuvable.');
 
   await db.run(
-    'UPDATE landmarks SET label = ?, x = ?, y = ?, width = ?, height = ? WHERE id = ?',
+    `UPDATE landmarks SET label = ?, x = ?, y = ?, width = ?, height = ?, angle = ?
+      WHERE id = ?`,
     payload.label === undefined ? landmark.label : String(payload.label).trim(),
     readPercent(payload.x, landmark.x, 'La position X'),
     readPercent(payload.y, landmark.y, 'La position Y'),
     readPercent(payload.width, landmark.width, 'La largeur'),
     readPercent(payload.height, landmark.height, 'La hauteur'),
+    readAngle(payload.angle, landmark.angle),
     id,
   );
 

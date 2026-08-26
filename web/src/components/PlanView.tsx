@@ -28,11 +28,54 @@ const FOCUS_MARGIN = 15;
 const FOCUS_MIN_WIDTH = 38;
 const TWEEN_MS = 200;
 
+/** Géométrie d'un objet posé au sol : un rectangle, et son orientation. */
 interface Box {
   x: number;
   y: number;
   width: number;
   height: number;
+  /** Orientation en degrés. Le rectangle reste stocké non pivoté. */
+  angle: number;
+}
+
+/**
+ * Cadrage de la vue. C'est un rectangle d'écran, jamais pivoté — d'où un type
+ * distinct de `Box` : confondre les deux ferait croire qu'on peut incliner la
+ * caméra, ce que le plan ne fait pas.
+ */
+interface ViewBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Rotation d'un point autour d'un pivot, en degrés.
+ *
+ * Les meubles sont stockés en rectangles droits, et pivotés à l'affichage
+ * autour de leur centre. SVG s'occupe du dessin et des clics tout seul ; c'est
+ * le redimensionnement qui a besoin de ce calcul, pour ramener le pointeur dans
+ * le repère du meuble avant d'en déduire des cotes.
+ */
+function rotatePoint(px: number, py: number, cx: number, cy: number, degrees: number) {
+  if (!degrees) return { x: px, y: py };
+  const rad = (degrees * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = px - cx;
+  const dy = py - cy;
+  return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+}
+
+/** Centre d'une boîte : c'est autour de lui que tout pivote. */
+const centreOf = (box: Box) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+
+/** Attribut `transform` d'un meuble pivoté, ou rien s'il est droit. */
+function rotationTransform(box: Box) {
+  if (!box.angle) return undefined;
+  const centre = centreOf(box);
+  return `rotate(${box.angle} ${centre.x} ${centre.y})`;
 }
 
 interface PlanViewProps {
@@ -58,6 +101,9 @@ interface PlanViewProps {
 /** Position d'un élément pendant qu'on le fait glisser, avant enregistrement. */
 type Ghost = Box & { kind: 'rack' | 'landmark'; id: number };
 
+/** Ce qu'on est en train de faire au meuble attrapé. */
+type DragMode = 'move' | 'resize' | 'rotate';
+
 export function PlanView({
   racks,
   landmarks,
@@ -78,12 +124,12 @@ export function PlanView({
     kind: 'rack' | 'landmark';
     id: number;
     box: Box;
-    mode: 'move' | 'resize';
+    mode: DragMode;
     grabX: number;
     grabY: number;
   } | null>(null);
 
-  const full = useMemo<Box>(
+  const full = useMemo<ViewBox>(
     () => ({
       x: -MARGIN,
       y: -MARGIN,
@@ -93,7 +139,7 @@ export function PlanView({
     [planWidth, planHeight],
   );
 
-  const focused = useMemo<Box | null>(() => {
+  const focused = useMemo<ViewBox | null>(() => {
     const rack = racks.find((candidate) => candidate.id === focusRackId);
     if (!rack) return null;
 
@@ -133,7 +179,7 @@ export function PlanView({
     kind: 'rack' | 'landmark',
     id: number,
     box: Box,
-    mode: 'move' | 'resize',
+    mode: DragMode,
   ) {
     if (!editable) return;
     const point = toPlanPoint(event);
@@ -146,8 +192,10 @@ export function PlanView({
       id,
       box,
       mode,
-      grabX: point.x - (mode === 'move' ? box.x : box.x + box.width),
-      grabY: point.y - (mode === 'move' ? box.y : box.y + box.height),
+      // Seul le déplacement a besoin de mémoriser où le doigt a pris le meuble.
+      // Le redimensionnement et la rotation se calculent depuis un point figé.
+      grabX: point.x - box.x,
+      grabY: point.y - box.y,
     };
     setGhost({ kind, id, ...box });
   }
@@ -158,25 +206,57 @@ export function PlanView({
     if (!drag || !point) return;
 
     const { box } = drag;
-    setGhost(
-      drag.mode === 'move'
-        ? {
-            kind: drag.kind,
-            id: drag.id,
-            width: box.width,
-            height: box.height,
-            x: clamp(point.x - drag.grabX, 0, planWidth - box.width),
-            y: clamp(point.y - drag.grabY, 0, planHeight - box.height),
-          }
-        : {
-            kind: drag.kind,
-            id: drag.id,
-            x: box.x,
-            y: box.y,
-            width: clamp(point.x - drag.grabX - box.x, 3, planWidth - box.x),
-            height: clamp(point.y - drag.grabY - box.y, 2, planHeight - box.y),
-          },
+    const head = { kind: drag.kind, id: drag.id };
+
+    if (drag.mode === 'move') {
+      setGhost({
+        ...head,
+        width: box.width,
+        height: box.height,
+        angle: box.angle,
+        x: clamp(point.x - drag.grabX, 0, planWidth - box.width),
+        y: clamp(point.y - drag.grabY, 0, planHeight - box.height),
+      });
+      return;
+    }
+
+    if (drag.mode === 'rotate') {
+      // L'angle suit le doigt autour du centre. Le zéro pointe vers le haut,
+      // sens des aiguilles, comme la poignée que l'on voit.
+      const centre = centreOf(box);
+      const degrees = (Math.atan2(point.y - centre.y, point.x - centre.x) * 180) / Math.PI + 90;
+      const wrapped = ((degrees % 360) + 360) % 360;
+      // Aimant sur les quarts et les diagonales : poser un meuble d'équerre ne
+      // doit pas demander de la dextérité.
+      const snapped = Math.abs(wrapped % 45) < 4 ? Math.round(wrapped / 45) * 45 : wrapped;
+      setGhost({ ...head, ...box, angle: Math.round(snapped * 10) / 10 % 360 });
+      return;
+    }
+
+    // Redimensionnement. Le coin opposé reste figé à l'écran ; le pointeur est
+    // ramené dans le repère du meuble, et l'écart au coin figé donne les cotes.
+    const centre = centreOf(box);
+    const anchor = rotatePoint(box.x, box.y, centre.x, centre.y, box.angle);
+    const local = rotatePoint(point.x, point.y, anchor.x, anchor.y, -box.angle);
+    const width = Math.max(3, local.x - anchor.x);
+    const height = Math.max(2, local.y - anchor.y);
+    // Le coin figé impose où repart le rectangle non pivoté.
+    const nextCentre = rotatePoint(
+      anchor.x + width / 2,
+      anchor.y + height / 2,
+      anchor.x,
+      anchor.y,
+      box.angle,
     );
+
+    setGhost({
+      ...head,
+      angle: box.angle,
+      width,
+      height,
+      x: nextCentre.x - width / 2,
+      y: nextCentre.y - height / 2,
+    });
   }
 
   function endDrag() {
@@ -189,6 +269,7 @@ export function PlanView({
         y: round(ghost.y),
         width: round(ghost.width),
         height: round(ghost.height),
+        angle: round(ghost.angle),
       };
       if (drag.kind === 'rack') {
         const rack = racks.find((candidate) => candidate.id === drag.id);
@@ -337,11 +418,17 @@ function RackShape({
     event: ReactPointerEvent,
     kind: 'rack' | 'landmark',
     id: number,
-    box: { x: number; y: number; width: number; height: number },
-    mode: 'move' | 'resize',
+    box: Box,
+    mode: DragMode,
   ) => void;
 }) {
-  const box = { x: rack.x, y: rack.y, width: rack.width, height: rack.height };
+  const box: Box = {
+    x: rack.x,
+    y: rack.y,
+    width: rack.width,
+    height: rack.height,
+    angle: rack.angle ?? 0,
+  };
   const { setNodeRef, isOver } = useDroppable({
     id: `rack-${rack.id}`,
     data: { rack },
@@ -374,6 +461,7 @@ function RackShape({
     <g
       ref={dropRef}
       className={classes}
+      transform={rotationTransform(box)}
       onClick={onSelect ? () => onSelect(rack) : undefined}
       role={onSelect ? 'button' : undefined}
       tabIndex={onSelect ? 0 : undefined}
@@ -422,6 +510,11 @@ function RackShape({
         rx="1.2"
       />
 
+      {/* Gondole : un panneau perforé servi des deux côtés. L'âme centrale est
+          le panneau ; les broches dépassent des deux faces, ce qui la distingue
+          au premier coup d'œil d'un rayonnage plaqué contre un mur. */}
+      {rack.style === 'pegboard' ? <PegboardMarks rack={rack} /> : null}
+
       {/* Liseré d'allée : la direction avant même d'avoir lu le code. */}
       {!rack.is_zone && tone !== 'transparent' ? (
         <rect
@@ -448,17 +541,10 @@ function RackShape({
         </text>
       ) : null}
 
-      {/* Poignée de redimensionnement, en mode éditeur seulement. */}
-      {editable && onGrab ? (
-        <rect
-          className={styles.handle}
-          x={rack.x + rack.width - 2.2}
-          y={rack.y + rack.height - 2.2}
-          width="4.4"
-          height="4.4"
-          rx="1.2"
-          onPointerDown={(event) => onGrab(event, 'rack', rack.id, box, 'resize')}
-        />
+      {/* Poignées d'édition, sur le meuble sélectionné seulement : les afficher
+          sur les dix meubles à la fois rendait le plan illisible. */}
+      {editable && onGrab && selected ? (
+        <EditHandles box={box} kind="rack" id={rack.id} onGrab={onGrab} />
       ) : null}
     </g>
   );
@@ -508,8 +594,8 @@ function LandmarkShape({
     event: ReactPointerEvent,
     kind: 'rack' | 'landmark',
     id: number,
-    box: { x: number; y: number; width: number; height: number },
-    mode: 'move' | 'resize',
+    box: Box,
+    mode: DragMode,
   ) => void;
 }) {
   const box = {
@@ -517,6 +603,7 @@ function LandmarkShape({
     y: landmark.y,
     width: landmark.width,
     height: landmark.height,
+    angle: landmark.angle ?? 0,
   };
   const grab =
     editable && onGrab
@@ -526,7 +613,11 @@ function LandmarkShape({
   if (landmark.kind === 'door') {
     const { x, y, width } = landmark;
     return (
-      <g className={`${styles.door} ${editable ? styles.landmarkEditable : ''}`} onPointerDown={grab}>
+      <g
+        className={`${styles.door} ${editable ? styles.landmarkEditable : ''}`}
+        transform={rotationTransform(box)}
+        onPointerDown={grab}
+      >
         <rect className={styles.doorGap} x={x} y={y - 0.6} width={width} height="1.6" />
         <path
           className={styles.doorArc}
@@ -536,12 +627,19 @@ function LandmarkShape({
         <text className={styles.landmarkText} x={x + width / 2} y={y + width * 0.55}>
           {landmark.label || 'Entrée'}
         </text>
+        {editable && onGrab ? (
+          <EditHandles box={box} kind="landmark" id={landmark.id} onGrab={onGrab} />
+        ) : null}
       </g>
     );
   }
 
   return (
-    <g className={`${styles.bench} ${editable ? styles.landmarkEditable : ''}`} onPointerDown={grab}>
+    <g
+      className={`${styles.bench} ${editable ? styles.landmarkEditable : ''}`}
+      transform={rotationTransform(box)}
+      onPointerDown={grab}
+    >
       <rect
         className={styles.benchBody}
         x={landmark.x}
@@ -557,7 +655,97 @@ function LandmarkShape({
       >
         {landmark.label || 'Établi'}
       </text>
+      {editable && onGrab ? (
+        <EditHandles box={box} kind="landmark" id={landmark.id} onGrab={onGrab} />
+      ) : null}
     </g>
+  );
+}
+
+/**
+ * Gondole vue de dessus : l'âme du panneau au milieu, et les broches qui
+ * dépassent de part et d'autre. C'est le dessin qui dit qu'on la sert des deux
+ * côtés — se tromper de face, c'est faire le tour du meuble pour rien.
+ */
+function PegboardMarks({ rack }: { rack: Rack }) {
+  const middle = rack.y + rack.height / 2;
+  // Une broche tous les trois pas environ, sans jamais dépasser le meuble.
+  const count = Math.max(2, Math.min(12, Math.round(rack.width / 3)));
+  const step = rack.width / (count + 1);
+  const reach = Math.min(1.6, rack.height / 2 - 0.4);
+
+  return (
+    <g className={styles.pegboard}>
+      <line
+        className={styles.pegboardPanel}
+        x1={rack.x + 1}
+        y1={middle}
+        x2={rack.x + rack.width - 1}
+        y2={middle}
+      />
+      {Array.from({ length: count }, (_, index) => {
+        const x = rack.x + step * (index + 1);
+        return (
+          <g key={index}>
+            <line className={styles.peg} x1={x} y1={middle} x2={x} y2={middle - reach} />
+            <line className={styles.peg} x1={x} y1={middle} x2={x} y2={middle + reach} />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/**
+ * Les deux poignées d'un meuble en mode éditeur : redimensionner au coin
+ * bas-droit, pivoter par la tige au-dessus. Elles vivent dans le groupe pivoté,
+ * donc elles suivent le meuble sans calcul supplémentaire.
+ */
+function EditHandles({
+  box,
+  kind,
+  id,
+  onGrab,
+}: {
+  box: Box;
+  kind: 'rack' | 'landmark';
+  id: number;
+  onGrab: (
+    event: ReactPointerEvent,
+    kind: 'rack' | 'landmark',
+    id: number,
+    box: Box,
+    mode: DragMode,
+  ) => void;
+}) {
+  const centreX = box.x + box.width / 2;
+
+  return (
+    <>
+      <line
+        className={styles.rotateStem}
+        x1={centreX}
+        y1={box.y}
+        x2={centreX}
+        y2={box.y - 5}
+      />
+      <circle
+        className={styles.rotateHandle}
+        cx={centreX}
+        cy={box.y - 5}
+        r="2.2"
+        onPointerDown={(event) => onGrab(event, kind, id, box, 'rotate')}
+      />
+      <rect
+        className={styles.handle}
+        x={box.x + box.width - 2.2}
+        y={box.y + box.height - 2.2}
+        width="4.4"
+        height="4.4"
+        rx="1.2"
+        onPointerDown={(event) => onGrab(event, kind, id, box, 'resize')}
+      />
+    </>
   );
 }
 
@@ -569,7 +757,7 @@ function clamp(value: number, min: number, max: number): number {
  * Le cadrage glisse vers sa cible en 200 ms. `viewBox` n'étant pas animable en
  * CSS, l'interpolation se fait à la main, une image à la fois.
  */
-function useTweenedBox(target: Box): Box {
+function useTweenedBox(target: ViewBox): ViewBox {
   const [box, setBox] = useState(target);
   const fromRef = useRef(target);
   const frameRef = useRef(0);

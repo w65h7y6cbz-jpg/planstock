@@ -26,6 +26,7 @@ const LOCATION_COLUMNS = `
   racks.kind   AS rack_kind,
   racks.label  AS rack_label,
   racks.aisle  AS rack_aisle,
+  racks.style  AS rack_style,
   sites.id     AS site_id,
   sites.code   AS site_code,
   sites.name   AS site_name
@@ -37,8 +38,9 @@ export const SIDES = ['left', 'center', 'right'];
 /** Emplacement enrichi de ses codes calculés. */
 export function decorateLocation(row) {
   const isShelf = row.shelf_id !== null && row.shelf_id !== undefined;
+  const style = row.rack_style ?? '';
   const code = isShelf
-    ? formatShelfCode(row.rack_code, row.shelf_index)
+    ? formatShelfCode(row.rack_code, row.shelf_index, style)
     : formatZoneCode(row.rack_code);
 
   return {
@@ -50,6 +52,8 @@ export function decorateLocation(row) {
     rack_kind: row.rack_kind,
     rack_label: row.rack_label,
     rack_aisle: row.rack_aisle ?? '',
+    /** Aspect du meuble porteur : une gondole se range sur des broches. */
+    rack_style: style,
     shelf_index: isShelf ? row.shelf_index : null,
     // Indication facultative, jamais dans le code d'emplacement.
     side: isShelf ? (row.side ?? null) : null,
@@ -59,7 +63,7 @@ export function decorateLocation(row) {
     site_id: row.site_id ?? null,
     site_code: row.site_code ?? '',
     site_name: row.site_name ?? '',
-    short_code: isShelf ? formatShelfShortCode(row.shelf_index) : code,
+    short_code: isShelf ? formatShelfShortCode(row.shelf_index, style) : code,
     code,
   };
 }
@@ -210,6 +214,7 @@ export async function findShelf(db, shelfId, side = null) {
     `SELECT shelves.id AS shelf_id, NULL AS zone_id, shelves.shelf_index,
             racks.id AS rack_id, racks.code AS rack_code, racks.kind AS rack_kind,
             racks.label AS rack_label, racks.aisle AS rack_aisle,
+            racks.style AS rack_style,
             sites.id AS site_id, sites.code AS site_code, sites.name AS site_name
        FROM shelves
        JOIN racks ON racks.id = shelves.rack_id
@@ -227,6 +232,7 @@ export async function findZone(db, zoneId) {
     `SELECT NULL AS shelf_id, racks.id AS zone_id, NULL AS shelf_index,
             racks.id AS rack_id, racks.code AS rack_code, racks.kind AS rack_kind,
             racks.label AS rack_label, racks.aisle AS rack_aisle,
+            racks.style AS rack_style,
             sites.id AS site_id, sites.code AS site_code, sites.name AS site_name
        FROM racks
        JOIN sites ON sites.id = racks.site_id
@@ -292,8 +298,8 @@ export async function listRackShelves(db, rackId) {
         rack_id: rack.id,
         rack_code: rack.code,
         shelf_index: row.shelf_index,
-        short_code: formatShelfShortCode(row.shelf_index),
-        code: formatShelfCode(rack.code, row.shelf_index),
+        short_code: formatShelfShortCode(row.shelf_index, rack.style),
+        code: formatShelfCode(rack.code, row.shelf_index, rack.style),
         items: [],
       });
     }

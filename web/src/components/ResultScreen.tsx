@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { KIND_LABELS, KIND_MESSAGES, SIDE_LABELS, aisleColor } from '../lib/labels';
+import { KIND_LABELS, KIND_MESSAGES, aisleColor, isPegboard, sideLabel } from '../lib/labels';
 import type { Item } from '../types';
 import { RackElevation, ZoneDrawing } from './RackElevation';
 import styles from './ResultScreen.module.css';
@@ -111,7 +111,11 @@ export function ResultScreen({ outcome, shelvesCount, onOpenPlan, onNext }: Resu
           </p>
           {!isShelf ? <p className={styles.zoneNote}>Posé au sol, pas d’étagère</p> : null}
           {location.side ? (
-            <p className={styles.side}>{`Sur l’étagère, ${SIDE_LABELS[location.side]}`}</p>
+            <p className={styles.side}>
+              {isPegboard(location.rack_style)
+                ? `Gondole, ${sideLabel(location.side, location.rack_style)}`
+                : `Sur l’étagère, ${sideLabel(location.side)}`}
+            </p>
           ) : null}
 
           <dl className={styles.details}>
@@ -155,6 +159,7 @@ export function ResultScreen({ outcome, shelvesCount, onOpenPlan, onNext }: Resu
         <div className={styles.right}>
           {isShelf ? (
             <RackElevation
+              style={location.rack_style}
               shelvesCount={shelvesCount ?? location.shelf_index ?? 1}
               target={location.shelf_index}
               targetSide={location.side}

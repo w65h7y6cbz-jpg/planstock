@@ -84,7 +84,10 @@ export interface RackPayload {
   y?: number;
   width?: number;
   height?: number;
-  rotation?: number;
+  /** Orientation en degrés, libre. */
+  angle?: number;
+  /** Aspect du meuble : `''` rayonnage, `pegboard` gondole à broches double face. */
+  style?: string;
 }
 
 /** État du contrôle d'accès, renvoyé même à une connexion refusée. */
@@ -146,7 +149,14 @@ export const api = {
     }) => request<Landmark>('/landmarks', { method: 'POST', ...json(payload) }),
     update: (
       id: number,
-      changes: { label?: string; x?: number; y?: number; width?: number; height?: number },
+      changes: {
+        label?: string;
+        x?: number;
+        y?: number;
+        width?: number;
+        height?: number;
+        angle?: number;
+      },
     ) => request<Landmark>(`/landmarks/${id}`, { method: 'PATCH', ...json(changes) }),
     remove: (id: number) => request<{ deleted: boolean }>(`/landmarks/${id}`, { method: 'DELETE' }),
   },

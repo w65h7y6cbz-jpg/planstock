@@ -38,6 +38,8 @@ export interface Landmark {
   y: number;
   width: number;
   height: number;
+  /** Orientation en degrés : une porte est rarement d'équerre avec les murs. */
+  angle: number;
   created_at: string;
 }
 
@@ -52,6 +54,8 @@ export interface Location {
   rack_kind: RackKind;
   rack_label: string;
   rack_aisle: string;
+  /** Aspect du meuble porteur : une gondole se range sur des broches. */
+  rack_style: string;
   shelf_index: number | null;
   /** Gauche / centre / droite, ou `null` si non précisé. */
   side: Side | null;
@@ -141,7 +145,12 @@ export interface Rack {
   y: number;
   width: number;
   height: number;
+  /** Conservée par le schéma, remplacée par `angle` : plus rien ne la lit. */
   rotation: number;
+  /** Orientation en degrés, dans [0, 360[. Libre, pas seulement le quart de tour. */
+  angle: number;
+  /** Aspect : `''` rayonnage classique, `pegboard` gondole à broches, servie des deux côtés. */
+  style: string;
   items_count: number;
   created_at: string;
 }

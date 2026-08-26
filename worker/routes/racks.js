@@ -38,6 +38,38 @@ function readPercent(value, fallback, field) {
   return Math.round(number * 100) / 100;
 }
 
+/**
+ * Angle en degrés, ramené dans [0, 360[. L'éditeur laisse pivoter librement :
+ * les rayonnages ne longent pas tous un mur, et un local a des angles coupés.
+ */
+function readAngle(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw badRequest('L’angle doit être un nombre de degrés.');
+  }
+  // Un tour complet revient au point de départ : on normalise plutôt que de
+  // refuser, sinon faire tourner la poignée deux fois lèverait une erreur.
+  const wrapped = ((number % 360) + 360) % 360;
+  return Math.round(wrapped * 10) / 10;
+}
+
+/**
+ * Aspect du meuble. Une gondole reste un rayonnage — elle partage la
+ * numérotation des `R` — mais c'est un panneau perforé servi des deux côtés :
+ * on y suspend aux broches au lieu de poser sur des tablettes.
+ */
+const STYLES = ['', 'pegboard'];
+
+function readStyle(value, fallback = '') {
+  if (value === undefined || value === null) return fallback;
+  const style = String(value);
+  if (!STYLES.includes(style)) {
+    throw badRequest('Aspect de meuble inconnu.');
+  }
+  return style;
+}
+
 function readKind(value, fallback = 'rack') {
   if (value === undefined || value === null || value === '') return fallback;
   if (value !== 'rack' && value !== 'zone') {
@@ -147,8 +179,9 @@ racks.post('/', async (c) => {
   const placement = defaultPlacement(total);
 
   const { lastInsertRowid } = await db.run(
-    `INSERT INTO racks (site_id, code, kind, label, aisle, shelves_count, x, y, width, height, rotation, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO racks (site_id, code, kind, label, aisle, shelves_count,
+                        x, y, width, height, angle, style, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     site.id,
     code,
     kind,
@@ -159,7 +192,8 @@ racks.post('/', async (c) => {
     readPercent(payload.y, placement.y, 'La position Y'),
     readPercent(payload.width, placement.width, 'La largeur'),
     readPercent(payload.height, placement.height, 'La hauteur'),
-    payload.rotation === 90 ? 90 : 0,
+    readAngle(payload.angle, 0),
+    readStyle(payload.style),
     new Date().toISOString(),
   );
 
@@ -202,7 +236,8 @@ racks.patch('/:id', async (c) => {
     y: readPercent(payload.y, rack.y, 'La position Y'),
     width: readPercent(payload.width, rack.width, 'La largeur'),
     height: readPercent(payload.height, rack.height, 'La hauteur'),
-    rotation: payload.rotation === undefined ? rack.rotation : payload.rotation === 90 ? 90 : 0,
+    angle: readAngle(payload.angle, rack.angle),
+    style: readStyle(payload.style, rack.style),
   };
 
   if (next.code !== rack.code) {
@@ -222,7 +257,7 @@ racks.patch('/:id', async (c) => {
 
   await db.run(
     `UPDATE racks SET code = ?, label = ?, aisle = ?, shelves_count = ?,
-                      x = ?, y = ?, width = ?, height = ?, rotation = ?
+                      x = ?, y = ?, width = ?, height = ?, angle = ?, style = ?
       WHERE id = ?`,
     next.code,
     next.label,
@@ -232,7 +267,8 @@ racks.patch('/:id', async (c) => {
     next.y,
     next.width,
     next.height,
-    next.rotation,
+    next.angle,
+    next.style,
     id,
   );
 

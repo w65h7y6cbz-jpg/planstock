@@ -1,5 +1,5 @@
 import type { Side } from '../types';
-import { SIDE_LABELS, SIDE_POSITION } from '../lib/labels';
+import { SIDE_POSITION, isPegboard, sideLabel, slotWord } from '../lib/labels';
 import styles from './RackElevation.module.css';
 
 /**
@@ -30,6 +30,8 @@ export type ShelfMark = 'lit' | 'done';
 
 interface RackElevationProps {
   shelvesCount: number;
+  /** Aspect du meuble : une gondole porte des broches, pas des tablettes. */
+  style?: string | null;
   /** Étagère mise en avant (1 = celle du haut), ou `null`. */
   target?: number | null;
   /** Côté de l'étagère visée, quand il a été renseigné. */
@@ -54,6 +56,7 @@ function slotBox(shelfIndex: number) {
 
 export function RackElevation({
   shelvesCount,
+  style = '',
   target = null,
   targetSide = null,
   dimOthers = false,
@@ -64,6 +67,7 @@ export function RackElevation({
 }: RackElevationProps) {
   const count = Math.max(1, shelvesCount);
   const totalHeight = TOP + count * SLOT + FEET;
+  const pegboard = isPegboard(style);
   const shelves = Array.from({ length: count }, (_, index) => index + 1);
 
   return (
@@ -98,6 +102,8 @@ export function RackElevation({
         height={count * SLOT + 2}
       />
 
+      {pegboard ? <PerforatedPanel rows={count} /> : null}
+
       {shelves.map((index) => {
         const box = slotBox(index);
         const isTarget = target === index;
@@ -122,7 +128,7 @@ export function RackElevation({
             onClick={onSelectShelf ? () => onSelectShelf(index) : undefined}
             role={onSelectShelf ? 'button' : undefined}
             tabIndex={onSelectShelf ? 0 : undefined}
-            aria-label={onSelectShelf ? `Étagère ${index}` : undefined}
+            aria-label={onSelectShelf ? `${slotWord(style)} ${index}` : undefined}
             onKeyDown={
               onSelectShelf
                 ? (event) => {
@@ -143,26 +149,34 @@ export function RackElevation({
               height={SLOT - BOARD}
             />
 
-            {/* Tablette : dessus clair, chant plus sombre — l'épaisseur se voit */}
-            <rect
-              className={styles.board}
-              x={INNER_LEFT - 1.6}
-              y={box.boardTop}
-              width={INNER_WIDTH + 3.2}
-              height={BOARD}
-              rx="0.7"
-            />
-            <rect
-              className={styles.boardEdge}
-              x={INNER_LEFT - 1.6}
-              y={box.boardTop + BOARD - 1.1}
-              width={INNER_WIDTH + 3.2}
-              height="1.1"
-            />
+            {pegboard ? (
+              /* Gondole : une rangée de broches sur le panneau perforé. Les
+                 articles y sont suspendus, il n'y a pas de tablette. */
+              <PegRow top={box.boardTop} />
+            ) : (
+              <>
+                {/* Tablette : dessus clair, chant plus sombre — l'épaisseur se voit */}
+                <rect
+                  className={styles.board}
+                  x={INNER_LEFT - 1.6}
+                  y={box.boardTop}
+                  width={INNER_WIDTH + 3.2}
+                  height={BOARD}
+                  rx="0.7"
+                />
+                <rect
+                  className={styles.boardEdge}
+                  x={INNER_LEFT - 1.6}
+                  y={box.boardTop + BOARD - 1.1}
+                  width={INNER_WIDTH + 3.2}
+                  height="1.1"
+                />
+              </>
+            )}
 
-            {/* Numéro d'étagère, hors du meuble */}
+            {/* Numéro de rangée, hors du meuble */}
             <text className={styles.shelfCode} x={UPRIGHT_LEFT - 1} y={box.top + SLOT / 2}>
-              {`E${index}`}
+              {`${pegboard ? 'B' : 'E'}${index}`}
             </text>
           </g>
         );
@@ -191,9 +205,47 @@ export function RackElevation({
       />
 
       {target !== null && target >= 1 && target <= count ? (
-        <TargetMarker shelfIndex={target} side={targetSide} />
+        <TargetMarker shelfIndex={target} side={targetSide} style={style} />
       ) : null}
     </svg>
+  );
+}
+
+/** Le fond percé d'une gondole : c'est lui qu'on reconnaît sur la photo. */
+function PerforatedPanel({ rows }: { rows: number }) {
+  const holes = [];
+  for (let row = 0; row < rows * 4; row += 1) {
+    for (let column = 0; column < 11; column += 1) {
+      holes.push(
+        <circle
+          key={`${row}-${column}`}
+          className={styles.perforation}
+          cx={INNER_LEFT + 2 + column * ((INNER_WIDTH - 4) / 10)}
+          cy={TOP + 3 + row * (SLOT / 4)}
+          r="0.7"
+        />,
+      );
+    }
+  }
+  return <g className={styles.panel}>{holes}</g>;
+}
+
+/** Une rangée de broches : les tiges dépassent du panneau, on y suspend. */
+function PegRow({ top }: { top: number }) {
+  const count = 6;
+  const step = (INNER_WIDTH - 4) / (count - 1);
+  return (
+    <g className={styles.pegRow}>
+      {Array.from({ length: count }, (_, index) => {
+        const x = INNER_LEFT + 2 + index * step;
+        return (
+          <g key={index}>
+            <line className={styles.pegStem} x1={x} y1={top} x2={x} y2={top + 3.4} />
+            <circle className={styles.pegTip} cx={x} cy={top + 3.4} r="0.9" />
+          </g>
+        );
+      })}
+    </g>
   );
 }
 
@@ -215,7 +267,15 @@ function Upright({ x, height }: { x: number; height: number }) {
 }
 
 /** Repère de l'étagère visée : un chevron à gauche, la graduation si connue. */
-function TargetMarker({ shelfIndex, side }: { shelfIndex: number; side: Side | null }) {
+function TargetMarker({
+  shelfIndex,
+  side,
+  style,
+}: {
+  shelfIndex: number;
+  side: Side | null;
+  style?: string | null;
+}) {
   const box = slotBox(shelfIndex);
   const middle = box.top + (SLOT - BOARD) / 2;
 
@@ -256,7 +316,7 @@ function TargetMarker({ shelfIndex, side }: { shelfIndex: number; side: Side | n
             x={INNER_LEFT + INNER_WIDTH * SIDE_POSITION[side]}
             y={box.top - 2.4}
           >
-            {SIDE_LABELS[side]}
+            {sideLabel(side, style)}
           </text>
         </>
       ) : (

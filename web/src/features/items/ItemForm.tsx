@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type ItemPayload } from '../../api';
-import { SIDE_SHORT, SIDES } from '../../lib/labels';
+import { FACES, SIDES, isPegboard, sideShort } from '../../lib/labels';
 import type { Customer, Item, ItemKind, Rack, Shelf, Side } from '../../types';
 import styles from './ItemForm.module.css';
 
@@ -50,6 +50,9 @@ export function ItemForm({
 
   const selectedRack = racks.find((rack) => rack.id === rackId) ?? null;
   const isZone = selectedRack?.is_zone ?? false;
+  // Une gondole se sert des deux côtés : « côté » y désigne la face, pas la
+  // position sur la tablette. Se tromper de face, c'est faire le tour pour rien.
+  const pegboard = isPegboard(selectedRack?.style);
 
   const referenceRef = useRef<HTMLInputElement>(null);
 
@@ -261,7 +264,8 @@ export function ItemForm({
 
           {isZone ? null : (
             <div className={styles.field}>
-              Côté de l’étagère <span className={styles.optional}>facultatif</span>
+              {pegboard ? 'Face de la gondole' : 'Côté de l’étagère'}{' '}
+              <span className={styles.optional}>facultatif</span>
               <div className={styles.kinds} role="radiogroup" aria-label="Côté de l’étagère">
                 <label className={`${styles.kind} ${side === '' ? styles.kindActive : ''}`}>
                   <input
@@ -272,7 +276,7 @@ export function ItemForm({
                   />
                   Non précisé
                 </label>
-                {SIDES.map((option) => (
+                {(pegboard ? FACES : SIDES).map((option) => (
                   <label
                     key={option}
                     className={`${styles.kind} ${side === option ? styles.kindActive : ''}`}
@@ -283,7 +287,7 @@ export function ItemForm({
                       checked={side === option}
                       onChange={() => setSide(option)}
                     />
-                    {SIDE_SHORT[option]}
+                    {sideShort(option, selectedRack?.style)}
                   </label>
                 ))}
               </div>

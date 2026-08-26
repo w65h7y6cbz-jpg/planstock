@@ -125,6 +125,91 @@ describe('PATCH /api/racks/:id', () => {
   });
 });
 
+describe('plan modulaire — angle libre, cotes et aspect', () => {
+  it('pivote un meuble à n’importe quel angle, pas seulement au quart de tour', async () => {
+    const rack = await createRack();
+    const { status, body } = await api(`/api/racks/${rack.id}`, {
+      method: 'PATCH',
+      json: { angle: 37.5 },
+    });
+
+    expect(status).toBe(200);
+    expect(body.angle).toBe(37.5);
+  });
+
+  it('ramène un angle qui dépasse le tour complet plutôt que de le refuser', async () => {
+    const rack = await createRack();
+
+    // Faire tourner la poignée deux fois ne doit pas lever d'erreur.
+    const { body } = await api(`/api/racks/${rack.id}`, {
+      method: 'PATCH',
+      json: { angle: 450 },
+    });
+    expect(body.angle).toBe(90);
+
+    const { body: negatif } = await api(`/api/racks/${rack.id}`, {
+      method: 'PATCH',
+      json: { angle: -90 },
+    });
+    expect(negatif.angle).toBe(270);
+  });
+
+  it('refuse un angle qui n’est pas un nombre', async () => {
+    const rack = await createRack();
+    const { status } = await api(`/api/racks/${rack.id}`, {
+      method: 'PATCH',
+      json: { angle: 'de biais' },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  it('accepte des cotes saisies au clavier', async () => {
+    const rack = await createRack();
+    const { body } = await api(`/api/racks/${rack.id}`, {
+      method: 'PATCH',
+      json: { x: 12.5, y: 40, width: 33.25, height: 6 },
+    });
+
+    expect(body).toMatchObject({ x: 12.5, y: 40, width: 33.25, height: 6 });
+  });
+
+  it('pose une gondole : un panneau à broches, servi des deux côtés', async () => {
+    const { status, body } = await api('/api/racks', {
+      method: 'POST',
+      json: { site_id: 1, label: 'Gondole centrale', style: 'pegboard', shelves_count: 4 },
+    });
+
+    expect(status).toBe(201);
+    expect(body).toMatchObject({ style: 'pegboard', kind: 'rack' });
+    // Une gondole porte bien ses rangées de broches : c'est un rayonnage.
+    expect(body.shelves).toHaveLength(4);
+  });
+
+  it('refuse un aspect inconnu', async () => {
+    const { status } = await api('/api/racks', {
+      method: 'POST',
+      json: { site_id: 1, style: 'nuage' },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  it('pivote aussi un repère : une porte est rarement d’équerre', async () => {
+    const { body: porte } = await api('/api/landmarks', {
+      method: 'POST',
+      json: { site_id: 1, kind: 'door' },
+    });
+    expect(porte.angle).toBe(0);
+
+    const { body } = await api(`/api/landmarks/${porte.id}`, {
+      method: 'PATCH',
+      json: { angle: 22 },
+    });
+    expect(body.angle).toBe(22);
+  });
+});
+
 describe('DELETE /api/racks/:id', () => {
   it('supprime un rayonnage vide', async () => {
     const rack = await createRack();

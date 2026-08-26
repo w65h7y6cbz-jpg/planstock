@@ -227,3 +227,41 @@
   dominant-baseline: middle;
   pointer-events: none;
 }
+
+/* Poignée de rotation : une tige et une pastille au-dessus du meuble. Elles
+   vivent dans le groupe pivoté, donc elles tournent avec lui — on voit tout de
+   suite dans quel sens il est posé. */
+.rotateStem {
+  stroke: var(--accent);
+  stroke-width: 0.4;
+  stroke-dasharray: 1 1;
+  pointer-events: none;
+}
+
+.rotateHandle {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 0.6;
+  cursor: grab;
+}
+
+.rotateHandle:active {
+  cursor: grabbing;
+}
+
+/* Gondole : le panneau vu par la tranche, et ses broches des deux côtés. */
+.pegboard {
+  pointer-events: none;
+}
+
+.pegboardPanel {
+  stroke: var(--line-strong);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+}
+
+.peg {
+  stroke: var(--text-faint);
+  stroke-width: 0.35;
+  stroke-linecap: round;
+}

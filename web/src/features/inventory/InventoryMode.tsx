@@ -3,7 +3,7 @@ import { ApiError, api, type RackPayload } from '../../api';
 import { Logo } from '../../components/Logo';
 import { RackElevation, ZoneDrawing } from '../../components/RackElevation';
 import { useCustomers } from '../../hooks/useCustomers';
-import { SIDES, SIDE_SHORT, aisleColor } from '../../lib/labels';
+import { FACES, SIDES, aisleColor, isPegboard, sideShort } from '../../lib/labels';
 import type { Rack, Shelf, Side, Site, User } from '../../types';
 import { RackWizard } from './RackWizard';
 import styles from './InventoryMode.module.css';
@@ -341,7 +341,8 @@ export function InventoryMode({
 
               {rack.is_zone ? null : (
                 <div className={styles.field}>
-                  Côté <span className={styles.optional}>facultatif</span>
+                  {isPegboard(rack.style) ? 'Face' : 'Côté'}{' '}
+                  <span className={styles.optional}>facultatif</span>
                   <div className={styles.sides}>
                     <button
                       type="button"
@@ -350,14 +351,14 @@ export function InventoryMode({
                     >
                       Non précisé
                     </button>
-                    {SIDES.map((option) => (
+                    {(isPegboard(rack.style) ? FACES : SIDES).map((option) => (
                       <button
                         key={option}
                         type="button"
                         className={`${styles.sideButton} ${side === option ? styles.sideOn : ''}`}
                         onClick={() => setSide(option)}
                       >
-                        {SIDE_SHORT[option]}
+                        {sideShort(option, rack.style)}
                       </button>
                     ))}
                   </div>
