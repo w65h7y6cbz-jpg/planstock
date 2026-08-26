@@ -120,6 +120,50 @@ describe('réserver une référence à un client', () => {
     expect(parClient).toEqual({ global: `R0${rack.code}-E3`, AOCCI: `R0${rack.code}-E2` });
   });
 
+  it('corriger la désignation n’emporte aucun rangement', async () => {
+    const rack = await createRack({ site_id: context.siteId });
+    const { body: customer } = await createCustomer();
+    const { body: item } = await postItem({ reference: 'UK707E/L', shelf_id: shelfIdOf(rack, 1) });
+
+    await api(`/api/items/${item.id}/location`, {
+      method: 'PUT',
+      json: { user_id: context.userId, shelf_id: shelfIdOf(rack, 2), customer_id: customer.id },
+    });
+
+    // Une modification qui ne parle pas d'emplacement ne doit toucher à rien :
+    // la version précédente effaçait tout puis réinsérait un seul rangement.
+    await api(`/api/items/${item.id}`, {
+      method: 'PATCH',
+      json: { user_id: context.userId, designation: 'Toner noir UK707' },
+    });
+
+    const { body: after } = await api(`/api/items/${item.id}`);
+    expect(after.designation).toBe('Toner noir UK707');
+    expect(after.locations).toHaveLength(2);
+  });
+
+  it('ne déplace que le rangement du stock visé lors d’une modification', async () => {
+    const rack = await createRack({ site_id: context.siteId });
+    const { body: customer } = await createCustomer();
+    const { body: item } = await postItem({ reference: 'UK707E/L', shelf_id: shelfIdOf(rack, 1) });
+
+    await api(`/api/items/${item.id}/location`, {
+      method: 'PUT',
+      json: { user_id: context.userId, shelf_id: shelfIdOf(rack, 2), customer_id: customer.id },
+    });
+
+    await api(`/api/items/${item.id}`, {
+      method: 'PATCH',
+      json: { user_id: context.userId, shelf_id: shelfIdOf(rack, 3), customer_id: customer.id },
+    });
+
+    const { body: after } = await api(`/api/items/${item.id}`);
+    const parStock = Object.fromEntries(
+      after.locations.map((row) => [row.customer_name || 'global', row.code]),
+    );
+    expect(parStock).toEqual({ global: `R0${rack.code}-E1`, AOCCI: `R0${rack.code}-E3` });
+  });
+
   it('refuse de réserver à un client d’un autre local', async () => {
     const rack = await createRack({ site_id: context.siteId });
     const { body: ailleurs } = await createCustomer({ site_id: context.otherSiteId });
@@ -131,7 +175,7 @@ describe('réserver une référence à un client', () => {
     });
 
     expect(status).toBe(400);
-    expect(body.error).toMatch(/sous-stock de ce local/);
+    expect(body.error).toMatch(/stock à part de ce local/);
   });
 
   it('note le sous-stock dans l’historique, pour qu’il reste lisible plus tard', async () => {

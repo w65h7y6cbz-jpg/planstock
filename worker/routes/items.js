@@ -95,12 +95,12 @@ async function readSearchCustomerId(db, c, siteId) {
   if (raw === undefined || raw === '') return null;
 
   const id = Number(raw);
-  if (!Number.isInteger(id) || id <= 0) throw badRequest('Sous-stock invalide.');
+  if (!Number.isInteger(id) || id <= 0) throw badRequest('Stock à part invalide.');
 
   const customer = await db.get('SELECT id, site_id, name FROM customers WHERE id = ?', id);
-  if (!customer) throw notFound('Sous-stock introuvable.');
+  if (!customer) throw notFound('Stock à part introuvable.');
   if (siteId && customer.site_id !== siteId) {
-    throw badRequest(`« ${customer.name} » n’est pas un sous-stock de ce local.`);
+    throw badRequest(`« ${customer.name} » n’est pas un stock à part de ce local.`);
   }
   return customer.id;
 }
@@ -111,16 +111,15 @@ async function readSearchCustomerId(db, c, siteId) {
  * on réserverait à un client de Sharp Center une étagère d'Optimium.
  */
 async function readLocationCustomer(db, payload, location) {
-  const id = readId(payload.customer_id, 'Sous-stock');
+  const id = readId(payload.customer_id, 'Stock');
   if (id === null) return null;
-  if (!location) {
-    throw badRequest('Un article sans emplacement ne peut pas être réservé à un client.');
-  }
 
   const customer = await db.get('SELECT id, site_id, name FROM customers WHERE id = ?', id);
-  if (!customer) throw notFound('Sous-stock introuvable.');
-  if (customer.site_id !== location.site_id) {
-    throw badRequest(`« ${customer.name} » n’est pas un sous-stock de ce local.`);
+  if (!customer) throw notFound('Stock à part introuvable.');
+  // En modification, le stock peut être précisé sans que l'emplacement change :
+  // on ne contrôle le local que lorsqu'une destination est connue.
+  if (location && customer.site_id !== location.site_id) {
+    throw badRequest(`« ${customer.name} » n’est pas un stock à part de ce local.`);
   }
   return customer;
 }
@@ -196,6 +195,9 @@ items.post('/', async (c) => {
   const requested = await readLocation(db, payload);
   const location = requested ?? null;
   const customer = await readLocationCustomer(db, payload, location);
+  if (customer && !location) {
+    throw badRequest('Un article sans emplacement ne peut pas être rangé dans un stock à part.');
+  }
 
   if (isPhysical(kind) && !location) {
     throw badRequest('Un article physique doit être rangé sur une étagère ou une zone.');
@@ -273,8 +275,14 @@ items.patch('/:id', async (c) => {
   const familyCode = readFamily(payload.family_code, item.family_code);
   const familyLabel = readFamily(payload.family_label, item.family_label);
 
-  const current = item.locations[0] ?? null;
   const requested = await readLocation(db, payload);
+  const customer = await readLocationCustomer(db, payload, requested ?? null);
+  const customerId = customer?.id ?? null;
+
+  // Un article peut être rangé au stock général ET dans un ou plusieurs stocks
+  // à part. On ne touche qu'à celui qui est visé — sinon corriger la
+  // désignation d'un article emporterait ses réservations au passage.
+  const current = item.locations.find((row) => (row.customer_id ?? null) === customerId) ?? null;
   let target = current;
 
   if (!isPhysical(kind)) {
@@ -316,20 +324,39 @@ items.patch('/:id', async (c) => {
       new Date().toISOString(),
       id,
     ),
-    locationChanged ? db.stmt('DELETE FROM item_locations WHERE item_id = ?', id) : null,
+    // Un article qui devient Service ou Hors PlanStock n'a plus d'existence
+    // physique nulle part : il perd tous ses rangements, stocks à part compris.
+    // Sinon on ne défait que celui du stock visé.
+    !isPhysical(kind)
+      ? db.stmt('DELETE FROM item_locations WHERE item_id = ?', id)
+      : locationChanged
+        ? db.stmt(
+            'DELETE FROM item_locations WHERE item_id = ? AND customer_id IS ?',
+            id,
+            customerId,
+          )
+        : null,
     locationChanged && target
       ? db.stmt(
-          'INSERT INTO item_locations (item_id, shelf_id, zone_id, side) VALUES (?, ?, ?, ?)',
+          `INSERT INTO item_locations (item_id, shelf_id, zone_id, side, customer_id)
+           VALUES (?, ?, ?, ?, ?)`,
           id,
           columns.shelf_id,
           columns.zone_id,
           columns.side,
+          customerId,
         )
       : null,
     fieldsChanged ? movementStatement(db, { item: next, user, action: 'update' }) : null,
     // Un simple changement de côté sur la même étagère n'est pas un mouvement.
     movedElsewhere
-      ? movementStatement(db, { item: next, user, action: 'move', from: current, to: target })
+      ? movementStatement(db, {
+          item: next,
+          user,
+          action: 'move',
+          from: current,
+          to: target ? { ...target, customer_name: customer?.name ?? '' } : null,
+        })
       : null,
   ]);
 

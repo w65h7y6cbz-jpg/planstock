@@ -66,6 +66,11 @@ export interface ItemPayload {
   zone_id?: number | null;
   /** Côté d'étagère, facultatif ; ignoré pour une zone. */
   side?: Side | null;
+  /**
+   * Stock à part de destination ; absent ou `null` = stock général. Seul le
+   * rangement de ce stock-là est touché, les autres restent en place.
+   */
+  customer_id?: number | null;
 }
 
 export interface RackPayload {

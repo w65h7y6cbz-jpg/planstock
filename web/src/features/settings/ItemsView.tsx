@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, type ItemPayload } from '../../api';
 import { KIND_LABELS, SIDE_SHORT } from '../../lib/labels';
 import type { Item, Rack, Site, User } from '../../types';
+import { useCustomers } from '../../hooks/useCustomers';
 import { ItemForm } from '../items/ItemForm';
 import styles from './ItemsView.module.css';
 import shared from './settings.module.css';
@@ -23,6 +24,7 @@ const messageOf = (cause: unknown, fallback: string) =>
   cause instanceof ApiError || cause instanceof Error ? cause.message : fallback;
 
 export function ItemsView({ site, racks, currentUser, onChanged }: ItemsViewProps) {
+  const { customers } = useCustomers(site.id);
   const [items, setItems] = useState<Item[] | null>(null);
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Item | 'new' | null>(null);
@@ -94,6 +96,7 @@ export function ItemsView({ site, racks, currentUser, onChanged }: ItemsViewProp
           key={editing === 'new' ? 'new' : editing.id}
           item={editing === 'new' ? null : editing}
           racks={racks}
+          customers={customers}
           onSubmit={submit}
           onCancel={() => {
             setEditing(null);

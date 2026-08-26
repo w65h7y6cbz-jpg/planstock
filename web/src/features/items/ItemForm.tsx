@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type ItemPayload } from '../../api';
 import { SIDE_SHORT, SIDES } from '../../lib/labels';
-import type { Item, ItemKind, Rack, Shelf, Side } from '../../types';
+import type { Customer, Item, ItemKind, Rack, Shelf, Side } from '../../types';
 import styles from './ItemForm.module.css';
 
 const KIND_LABELS: { value: ItemKind; label: string }[] = [
@@ -15,6 +15,8 @@ interface ItemFormProps {
   item: Item | null;
   presetReference?: string;
   racks: Rack[];
+  /** Stocks à part du local. Vide : le formulaire n'en parle pas. */
+  customers: Customer[];
   onSubmit: (payload: ItemPayload) => Promise<boolean>;
   onCancel: () => void;
   error: string | null;
@@ -24,11 +26,16 @@ export function ItemForm({
   item,
   presetReference = '',
   racks,
+  customers,
   onSubmit,
   onCancel,
   error,
 }: ItemFormProps) {
-  const current = item?.locations[0] ?? null;
+  // Un article peut être rangé au stock général et dans plusieurs stocks à
+  // part. Le formulaire n'en modifie qu'un à la fois : celui choisi ici.
+  const [customerId, setCustomerId] = useState<number | null>(null);
+  const current =
+    item?.locations.find((row) => (row.customer_id ?? null) === customerId) ?? null;
 
   const [reference, setReference] = useState(item?.reference_display ?? presetReference);
   const [designation, setDesignation] = useState(item?.designation ?? '');
@@ -50,6 +57,21 @@ export function ItemForm({
     referenceRef.current?.focus();
     referenceRef.current?.select();
   }, []);
+
+  // Changer de stock, c'est regarder un autre rangement du même article : les
+  // champs doivent suivre. Sans ça, valider écraserait la position d'un stock
+  // avec celle d'un autre.
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const location = item?.locations.find((row) => (row.customer_id ?? null) === customerId) ?? null;
+    setRackId(location?.rack_id ?? racks[0]?.id ?? null);
+    setShelfId(location?.shelf_id ?? null);
+    setSide(location?.side ?? '');
+  }, [customerId, item, racks]);
 
   useEffect(() => {
     if (rackId === null || isZone) {
@@ -92,6 +114,7 @@ export function ItemForm({
       shelf_id: kind === 'physical' && !isZone ? shelfId : null,
       zone_id: kind === 'physical' && isZone ? rackId : null,
       side: kind === 'physical' && !isZone && side ? side : null,
+      customer_id: kind === 'physical' ? customerId : null,
     });
     setBusy(false);
     if (!success) referenceRef.current?.focus();
@@ -174,6 +197,30 @@ export function ItemForm({
               {chosenCode ?? 'à choisir'}
             </span>
           </div>
+
+          {customers.length > 0 ? (
+            <label className={styles.field}>
+              Stock
+              <select
+                value={customerId ?? ''}
+                onChange={(event) =>
+                  setCustomerId(event.target.value === '' ? null : Number(event.target.value))
+                }
+              >
+                <option value="">Stock général</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </option>
+                ))}
+              </select>
+              <span className={styles.optional}>
+                {customerId
+                  ? 'Ce rangement appartient à ce stock ; les autres ne bougent pas.'
+                  : 'Le stock de tout le monde. Change ici pour ranger dans un stock à part.'}
+              </span>
+            </label>
+          ) : null}
 
           <div className={styles.row}>
             <label className={styles.field}>
