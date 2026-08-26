@@ -48,6 +48,7 @@ export async function describeUser(db, user) {
     restrict_customers: Boolean(user.restrict_customers),
     /** Vide et `restrict_customers` faux = tous les stocks. */
     customer_ids: allowed.map((row) => row.customer_id),
+    created_at: user.created_at,
   };
 }
 

@@ -310,5 +310,58 @@ describe('permissions', () => {
   it('démarre tout permis : un prénom ajouté peut travailler tout de suite', async () => {
     const { body: marc } = await addUser('Marc');
     expect(marc).toMatchObject({ can_move: true, can_delete: true, can_admin: true });
+    expect(marc.customer_ids).toEqual([]);
+  });
+
+  it('dit dans la liste des prénoms quels stocks sont confiés à chacun', async () => {
+    const { body: aocci } = await api('/api/customers', {
+      method: 'POST',
+      json: { site_id: context.siteId, name: 'AOCCI' },
+    });
+    const { body: marc } = await addUser('Marc');
+    await api(`/api/users/${marc.id}`, {
+      method: 'PATCH',
+      json: { restrict_customers: true, customer_ids: [aocci.id] },
+    });
+
+    // L'écran Équipe coche les stocks depuis cette liste : sans ce champ, il
+    // afficherait toutes les cases vides alors que les droits sont posés.
+    const { body: liste } = await api('/api/users?all=1');
+    const ligne = liste.find((row) => row.id === marc.id);
+    expect(ligne.restrict_customers).toBe(true);
+    expect(ligne.customer_ids).toEqual([aocci.id]);
+
+    const autre = liste.find((row) => row.id === context.userId);
+    expect(autre.customer_ids).toEqual([]);
+  });
+
+  it('remplace en bloc les stocks confiés : décocher retire vraiment', async () => {
+    const { body: aocci } = await api('/api/customers', {
+      method: 'POST',
+      json: { site_id: context.siteId, name: 'AOCCI' },
+    });
+    const { body: mairie } = await api('/api/customers', {
+      method: 'POST',
+      json: { site_id: context.siteId, name: 'Mairie' },
+    });
+    const { body: marc } = await addUser('Marc');
+
+    await api(`/api/users/${marc.id}`, {
+      method: 'PATCH',
+      json: { restrict_customers: true, customer_ids: [aocci.id, mairie.id] },
+    });
+    const { body: retire } = await api(`/api/users/${marc.id}`, {
+      method: 'PATCH',
+      json: { customer_ids: [mairie.id] },
+    });
+
+    expect(retire.customer_ids).toEqual([mairie.id]);
+
+    actAs(marc.id);
+    const ferme = await api(
+      `/api/items/search?q=ARB123&site_id=${context.siteId}&customer_id=${aocci.id}`,
+    );
+    actAs(context.userId);
+    expect(ferme.status).toBe(403);
   });
 });

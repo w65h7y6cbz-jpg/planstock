@@ -10,7 +10,10 @@ import { badRequest, body, conflict, notFound, routeId } from '../lib/http.js';
  */
 export const users = new Hono();
 
-const decorate = ({ pin_hash, pin_salt, failed_attempts, locked_until, ...row }) => ({
+const decorate = (
+  { pin_hash, pin_salt, failed_attempts, locked_until, ...row },
+  customerIds = [],
+) => ({
   ...row,
   active: Boolean(row.active),
   has_pin: Boolean(pin_hash),
@@ -18,7 +21,27 @@ const decorate = ({ pin_hash, pin_salt, failed_attempts, locked_until, ...row })
   can_delete: Boolean(row.can_delete),
   can_admin: Boolean(row.can_admin),
   restrict_customers: Boolean(row.restrict_customers),
+  /** Stocks à part confiés ; ne compte que si `restrict_customers` est vrai. */
+  customer_ids: customerIds,
 });
+
+/** Stocks confiés, par prénom. Une seule requête : la liste s'affiche en bloc. */
+async function customerIdsByUser(db) {
+  const rows = await db.all('SELECT user_id, customer_id FROM user_customers');
+  const byUser = new Map();
+  for (const row of rows) {
+    const list = byUser.get(row.user_id) ?? [];
+    list.push(row.customer_id);
+    byUser.set(row.user_id, list);
+  }
+  return byUser;
+}
+
+/** Stocks confiés à un seul prénom. */
+async function customerIdsOf(db, id) {
+  const rows = await db.all('SELECT customer_id FROM user_customers WHERE user_id = ?', id);
+  return rows.map((row) => row.customer_id);
+}
 
 /** Droit lu depuis le corps : absent, on garde celui d'aujourd'hui. */
 const readFlag = (value, fallback) => (value === undefined ? fallback : value ? 1 : 0);
@@ -31,7 +54,8 @@ users.get('/', async (c) => {
       ${includeInactive ? '' : 'WHERE active = 1'}
       ORDER BY first_name COLLATE NOCASE`,
   );
-  return c.json(rows.map(decorate));
+  const byUser = await customerIdsByUser(db);
+  return c.json(rows.map((row) => decorate(row, byUser.get(row.id) ?? [])));
 });
 
 users.post('/', async (c) => {
@@ -115,5 +139,7 @@ users.patch('/:id', async (c) => {
     ]);
   }
 
-  return c.json(decorate(await db.get('SELECT * FROM users WHERE id = ?', id)));
+  return c.json(
+    decorate(await db.get('SELECT * FROM users WHERE id = ?', id), await customerIdsOf(db, id)),
+  );
 });

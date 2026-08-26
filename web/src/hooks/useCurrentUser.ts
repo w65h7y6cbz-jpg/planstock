@@ -1,73 +1,145 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../api';
-import type { User } from '../types';
+import { ApiError, api } from '../api';
+import type { SessionUser, User } from '../types';
 
-const STORAGE_KEY = 'planstock.user_id';
-
-function readStoredUserId(): number | null {
-  try {
-    const stored = Number(localStorage.getItem(STORAGE_KEY));
-    return Number.isInteger(stored) && stored > 0 ? stored : null;
-  } catch {
-    return null;
-  }
-}
+/**
+ * Technicien courant.
+ *
+ * Prendre un prénom ouvre une **session** : le cookie qu'elle pose identifie
+ * ensuite toutes les requêtes, sans que l'interface ait à répéter qui elle est.
+ *
+ * Deux chemins, selon le prénom :
+ * - **protégé par un code** : le pavé s'ouvre, et rien n'est sélectionné tant
+ *   que le code n'est pas juste ;
+ * - **sans code** : on entre directement, comme avant. C'est ce qui permet de
+ *   mettre cette version en ligne sans mettre l'équipe dehors.
+ *
+ * Le prénom n'est plus mémorisé sur le poste : c'est la session qui fait foi,
+ * et elle vit dans un cookie que le navigateur garde un mois. Mémoriser en
+ * plus un identifiant laisserait croire qu'on est identifié alors que la
+ * session a expiré.
+ */
 
 export interface CurrentUserState {
   users: User[];
-  currentUser: User | null;
+  currentUser: SessionUser | null;
   loading: boolean;
   error: string | null;
+  /** Prénom dont on attend le code, ou `null`. */
+  pendingUser: User | null;
+  pinError: string | null;
+  pinBusy: boolean;
+  /** Demande un prénom : ouvre le pavé si ce prénom a un code. */
   selectUser: (id: number | null) => void;
+  submitPin: (pin: string) => Promise<void>;
+  cancelPin: () => void;
   reloadUsers: () => Promise<void>;
+  /** Après avoir choisi ou changé son code. */
+  refreshSession: () => Promise<void>;
 }
 
-/**
- * Prénom du technicien courant. Pas d'authentification : un simple choix dans
- * une liste, mémorisé sur ce poste, exigé avant toute modification du stock.
- */
+const messageOf = (cause: unknown, fallback: string) =>
+  cause instanceof ApiError || cause instanceof Error ? cause.message : fallback;
+
 export function useCurrentUser(): CurrentUserState {
   const [users, setUsers] = useState<User[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<number | null>(readStoredUserId);
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+  const [pendingUser, setPendingUser] = useState<User | null>(null);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinBusy, setPinBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const reloadUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await api.users.list();
-      setUsers(list);
+      setUsers(await api.users.list());
       setError(null);
-      // Un prénom désactivé ou supprimé entre deux sessions ne doit pas rester actif.
-      setCurrentUserId((current) =>
-        current !== null && list.some((user) => user.id === current) ? current : null,
-      );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Impossible de charger les prénoms.');
+      setError(messageOf(cause, 'Impossible de charger les prénoms.'));
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    void reloadUsers();
-  }, [reloadUsers]);
+  const refreshSession = useCallback(async () => {
+    try {
+      const { user } = await api.session.get();
+      setCurrentUser(user);
+    } catch {
+      // Sans session lisible, on est simplement personne : la recherche marche.
+      setCurrentUser(null);
+    }
+  }, []);
 
   useEffect(() => {
-    try {
-      if (currentUserId === null) localStorage.removeItem(STORAGE_KEY);
-      else localStorage.setItem(STORAGE_KEY, String(currentUserId));
-    } catch {
-      // Sans stockage local, le choix vaut pour la session en cours.
-    }
-  }, [currentUserId]);
+    void reloadUsers();
+    void refreshSession();
+  }, [reloadUsers, refreshSession]);
+
+  const open = useCallback(
+    async (userId: number, pin?: string) => {
+      const { user } = await api.session.open(userId, pin);
+      setCurrentUser(user);
+      setPendingUser(null);
+      setPinError(null);
+    },
+    [],
+  );
+
+  const selectUser = useCallback(
+    (id: number | null) => {
+      setPinError(null);
+
+      if (id === null) {
+        setPendingUser(null);
+        setCurrentUser(null);
+        void api.session.close().catch(() => undefined);
+        return;
+      }
+
+      const user = users.find((candidate) => candidate.id === id);
+      if (!user) return;
+
+      if (user.has_pin) {
+        setPendingUser(user);
+        return;
+      }
+      void open(id).catch((cause) => setError(messageOf(cause, 'Impossible de vous identifier.')));
+    },
+    [users, open],
+  );
+
+  const submitPin = useCallback(
+    async (pin: string) => {
+      if (!pendingUser) return;
+      setPinBusy(true);
+      try {
+        await open(pendingUser.id, pin);
+      } catch (cause) {
+        setPinError(messageOf(cause, 'Code refusé.'));
+      } finally {
+        setPinBusy(false);
+      }
+    },
+    [pendingUser, open],
+  );
 
   return {
     users,
-    currentUser: users.find((user) => user.id === currentUserId) ?? null,
+    currentUser,
     loading,
     error,
-    selectUser: setCurrentUserId,
+    pendingUser,
+    pinError,
+    pinBusy,
+    selectUser,
+    submitPin,
+    cancelPin: () => {
+      setPendingUser(null);
+      setPinError(null);
+    },
     reloadUsers,
+    refreshSession,
   };
 }

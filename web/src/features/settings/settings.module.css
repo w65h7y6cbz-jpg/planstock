@@ -168,6 +168,73 @@
   border-radius: var(--radius-sm);
 }
 
+/* Une ligne de l'équipe porte deux étages : le prénom, puis ses droits. Les
+   boutons restent à droite, alignés sur le prénom. */
+.userBlock {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.userHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.permRow,
+.stockRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* Les stocks confiés sont un cran en retrait : ils dépendent de la case
+   « Limiter » juste au-dessus, et le décalage le dit sans une phrase de plus. */
+.stockRow {
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--line);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.check:has(input:checked) {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.check:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* L'équipe tient sur deux étages par prénom : la fenêtre de 260 px coupait le
+   deuxième technicien en plein milieu, et les cases de droits devenaient
+   inatteignables. La page a déjà son propre ascenseur — la liste peut pousser. */
+.listTall {
+  max-height: none;
+  overflow: visible;
+}
+
 .listRowInactive {
   opacity: 0.6;
 }

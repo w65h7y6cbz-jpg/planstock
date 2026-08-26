@@ -12,6 +12,7 @@ import type {
   Settings,
   Shelf,
   Side,
+  SessionUser,
   Site,
   User,
 } from './types';
@@ -118,8 +119,42 @@ export const api = {
       request<User[]>(`/users${includeInactive ? '?all=1' : ''}`),
     create: (firstName: string) =>
       request<User>('/users', { method: 'POST', ...json({ first_name: firstName }) }),
-    update: (id: number, changes: { first_name?: string; active?: boolean }) =>
-      request<User>(`/users/${id}`, { method: 'PATCH', ...json(changes) }),
+    update: (
+      id: number,
+      changes: {
+        first_name?: string;
+        active?: boolean;
+        can_move?: boolean;
+        can_delete?: boolean;
+        can_admin?: boolean;
+        restrict_customers?: boolean;
+        /** Remplace en bloc les stocks à part autorisés. */
+        customer_ids?: number[];
+      },
+    ) => request<User>(`/users/${id}`, { method: 'PATCH', ...json(changes) }),
+  },
+
+  /**
+   * Identité du technicien. Prendre un prénom ouvre une session : le cookie
+   * qu'elle pose identifie ensuite toutes les requêtes, sans rien répéter.
+   *
+   * Un prénom sans code entre sans rien saisir — c'est le comportement d'avant,
+   * gardé pour que personne ne se retrouve dehors le jour de la mise en ligne.
+   */
+  session: {
+    get: () => request<{ user: SessionUser | null }>('/session'),
+    open: (userId: number, pin?: string) =>
+      request<{ user: SessionUser }>('/session', {
+        method: 'POST',
+        ...json({ user_id: userId, pin }),
+      }),
+    close: () => request<{ user: null }>('/session', { method: 'DELETE' }),
+    /** Choisir son code, ou en changer — l'ancien est alors exigé. */
+    setPin: (userId: number, pin: string, currentPin?: string) =>
+      request<{ user: SessionUser }>(`/session/pin/${userId}`, {
+        method: 'PUT',
+        ...json({ pin, current_pin: currentPin }),
+      }),
   },
 
   sites: {
