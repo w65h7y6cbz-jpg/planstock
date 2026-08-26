@@ -19,7 +19,7 @@ export function createMovementsRouter(db) {
     const rows = db
       .prepare(
         `SELECT id, item_id, item_reference, item_designation, user_id, user_first_name,
-                action, from_slot_id, from_slot_code, to_slot_id, to_slot_code, created_at
+                action, from_code, to_code, created_at
            FROM movements ${where}
           ORDER BY created_at DESC, id DESC
           LIMIT ?`,

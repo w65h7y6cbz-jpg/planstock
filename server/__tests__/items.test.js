@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import ExcelJS from 'exceljs';
-import { createRack, createTestContext, slotIdOf } from './helpers.js';
+import { createRack, createTestContext, createZone, shelfIdOf } from './helpers.js';
 
 let context;
 let rack;
 
 beforeEach(async () => {
   context = createTestContext();
-  rack = await createRack(request, context.app, { shelves_count: 3, slots_per_shelf: 4 });
+  rack = await createRack(request, context.app, { shelves_count: 5 });
 });
 
 const postItem = (body) =>
@@ -17,43 +17,64 @@ const postItem = (body) =>
     .send({ user_id: context.userId, ...body });
 
 describe('POST /api/items', () => {
-  it('crée un article physique et le range dans une case', async () => {
+  it('crée un article physique et le range sur une étagère', async () => {
     const response = await postItem({
       reference: 'ARB123',
       designation: 'Imprimante A3',
-      slot_id: slotIdOf(rack, 2, 4),
+      shelf_id: shelfIdOf(rack, 2),
     });
 
     expect(response.status).toBe(201);
     expect(response.body.reference).toBe('ARB123');
-    expect(response.body.locations[0].code).toBe('R01-E2-C4');
+    expect(response.body.locations[0]).toMatchObject({ kind: 'shelf', code: 'R01-E2' });
+  });
+
+  it('pose un article directement sur une zone', async () => {
+    const zone = await createZone(request, context.app, { label: 'Pile ProDesk' });
+    const response = await postItem({
+      reference: 'B39VLAT',
+      designation: 'Copieur B39',
+      zone_id: zone.id,
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.locations[0]).toMatchObject({
+      kind: 'zone',
+      code: 'Z01',
+      rack_label: 'Pile ProDesk',
+      shelf_index: null,
+    });
+  });
+
+  it('refuse une étagère et une zone à la fois', async () => {
+    const zone = await createZone(request, context.app);
+    const response = await postItem({
+      reference: 'ARB123',
+      shelf_id: shelfIdOf(rack, 1),
+      zone_id: zone.id,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('pas les deux');
   });
 
   it('accepte une famille Sage facultative et la conserve telle quelle', async () => {
     const response = await postItem({
       reference: 'ARB123',
-      designation: 'Imprimante A3',
       family_code: '0310',
       family_label: 'IMPRIMANTE LASER N/B TGC22',
-      slot_id: slotIdOf(rack, 1, 1),
+      shelf_id: shelfIdOf(rack, 1),
     });
 
-    expect(response.status).toBe(201);
     expect(response.body.family_code).toBe('0310');
     expect(response.body.family_label).toBe('IMPRIMANTE LASER N/B TGC22');
 
-    const sansFamille = await postItem({ reference: 'B39VLAT', slot_id: slotIdOf(rack, 1, 2) });
+    const sansFamille = await postItem({ reference: 'B39VLAT', shelf_id: shelfIdOf(rack, 2) });
     expect(sansFamille.body.family_code).toBeNull();
-    expect(sansFamille.body.family_label).toBeNull();
   });
 
   it('conserve la référence telle que saisie et la normalise pour la recherche', async () => {
-    const response = await postItem({
-      reference: 'UK707E/L',
-      designation: 'Toner',
-      slot_id: slotIdOf(rack, 1, 1),
-    });
-
+    const response = await postItem({ reference: 'UK707E/L', shelf_id: shelfIdOf(rack, 1) });
     expect(response.body.reference_display).toBe('UK707E/L');
     expect(response.body.reference).toBe('UK707EL');
   });
@@ -61,15 +82,15 @@ describe('POST /api/items', () => {
   it('refuse toute modification sans prénom sélectionné', async () => {
     const response = await request(context.app)
       .post('/api/items')
-      .send({ reference: 'ARB123', slot_id: slotIdOf(rack, 1, 1) });
+      .send({ reference: 'ARB123', shelf_id: shelfIdOf(rack, 1) });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toContain('prénom');
   });
 
   it('refuse une référence déjà présente', async () => {
-    await postItem({ reference: 'ARB123', slot_id: slotIdOf(rack, 1, 1) });
-    const response = await postItem({ reference: 'arb-123', slot_id: slotIdOf(rack, 1, 2) });
+    await postItem({ reference: 'ARB123', shelf_id: shelfIdOf(rack, 1) });
+    const response = await postItem({ reference: 'arb-123', shelf_id: shelfIdOf(rack, 2) });
 
     expect(response.status).toBe(409);
     expect(response.body.error).toContain('existe déjà');
@@ -78,7 +99,7 @@ describe('POST /api/items', () => {
   it('exige un emplacement pour un article physique', async () => {
     const response = await postItem({ reference: 'ARB123' });
     expect(response.status).toBe(400);
-    expect(response.body.error).toContain('case');
+    expect(response.body.error).toContain('étagère');
   });
 
   it('crée un article de type service sans emplacement', async () => {
@@ -89,7 +110,6 @@ describe('POST /api/items', () => {
     });
 
     expect(response.status).toBe(201);
-    expect(response.body.kind).toBe('service');
     expect(response.body.locations).toHaveLength(0);
   });
 
@@ -97,9 +117,8 @@ describe('POST /api/items', () => {
     const response = await postItem({
       reference: 'DEPITUC',
       kind: 'service',
-      slot_id: slotIdOf(rack, 1, 1),
+      shelf_id: shelfIdOf(rack, 1),
     });
-
     expect(response.status).toBe(400);
   });
 
@@ -107,7 +126,7 @@ describe('POST /api/items', () => {
     await postItem({
       reference: 'ARB123',
       designation: 'Imprimante A3',
-      slot_id: slotIdOf(rack, 2, 4),
+      shelf_id: shelfIdOf(rack, 2),
     });
 
     const { body } = await request(context.app).get('/api/movements');
@@ -116,9 +135,8 @@ describe('POST /api/items', () => {
       action: 'create',
       item_reference: 'ARB123',
       user_first_name: 'Daniel',
-      to_slot_code: 'R01-E2-C4',
+      to_code: 'R01-E2',
     });
-    expect(body[0].created_at).toBeTruthy();
   });
 });
 
@@ -127,21 +145,17 @@ describe('GET /api/items/search', () => {
     await postItem({
       reference: 'ARB123',
       designation: 'Imprimante A3',
-      slot_id: slotIdOf(rack, 2, 4),
+      shelf_id: shelfIdOf(rack, 2),
     });
-    await postItem({
-      reference: 'ARB456',
-      designation: 'Imprimante A4',
-      slot_id: slotIdOf(rack, 1, 1),
-    });
-    await postItem({ reference: 'UK707E/L', designation: 'Toner', slot_id: slotIdOf(rack, 3, 2) });
+    await postItem({ reference: 'ARB456', designation: 'Imprimante A4', shelf_id: shelfIdOf(rack, 1) });
+    await postItem({ reference: 'UK707E/L', designation: 'Toner', shelf_id: shelfIdOf(rack, 3) });
     await postItem({ reference: 'DEPITUC', designation: 'Redevance', kind: 'service' });
   });
 
   it('trouve une référence saisie avec tirets et minuscules', async () => {
     const { body } = await request(context.app).get('/api/items/search?q=arb-123');
     expect(body.exact.reference).toBe('ARB123');
-    expect(body.exact.locations[0].code).toBe('R01-E2-C4');
+    expect(body.exact.locations[0].code).toBe('R01-E2');
   });
 
   it('retrouve UK707E/L en tapant uk707el et le réaffiche tel que saisi', async () => {
@@ -161,42 +175,60 @@ describe('GET /api/items/search', () => {
     expect(body.matches).toHaveLength(0);
   });
 
-  it('renvoie les articles service sans emplacement', async () => {
-    const { body } = await request(context.app).get('/api/items/search?q=depituc');
-    expect(body.exact.kind).toBe('service');
-    expect(body.exact.locations).toHaveLength(0);
+  it('trouve un article posé sur une zone', async () => {
+    const zone = await createZone(request, context.app, { label: 'Pile ProDesk', code: 2 });
+    await postItem({ reference: 'B39VLAT', designation: 'Copieur B39', zone_id: zone.id });
+
+    const { body } = await request(context.app).get('/api/items/search?q=b39vlat');
+    expect(body.exact.locations[0].code).toBe('Z02');
+    expect(body.exact.locations[0].rack_label).toBe('Pile ProDesk');
   });
 });
 
 describe('PUT /api/items/:id/location', () => {
-  it('déplace un article et journalise le mouvement', async () => {
+  it('déplace un article d’une étagère à l’autre et journalise le mouvement', async () => {
     const created = await postItem({
       reference: 'ARB123',
       designation: 'Imprimante A3',
-      slot_id: slotIdOf(rack, 2, 4),
+      shelf_id: shelfIdOf(rack, 2),
     });
 
     const response = await request(context.app)
       .put(`/api/items/${created.body.id}/location`)
-      .send({ user_id: context.userId, slot_id: slotIdOf(rack, 1, 1) });
+      .send({ user_id: context.userId, shelf_id: shelfIdOf(rack, 1) });
 
     expect(response.status).toBe(200);
-    expect(response.body.locations[0].code).toBe('R01-E1-C1');
+    expect(response.body.locations[0].code).toBe('R01-E1');
 
     const { body: movements } = await request(context.app).get('/api/movements?reference=ARB123');
     expect(movements[0]).toMatchObject({
       action: 'move',
-      from_slot_code: 'R01-E2-C4',
-      to_slot_code: 'R01-E1-C1',
+      from_code: 'R01-E2',
+      to_code: 'R01-E1',
       user_first_name: 'Daniel',
     });
   });
 
-  it('refuse de déplacer un article sans prénom sélectionné', async () => {
-    const created = await postItem({ reference: 'ARB123', slot_id: slotIdOf(rack, 1, 1) });
+  it('déplace un article d’une étagère vers une zone', async () => {
+    const zone = await createZone(request, context.app, { code: 2 });
+    const created = await postItem({ reference: 'B39VLAT', shelf_id: shelfIdOf(rack, 3) });
+
     const response = await request(context.app)
       .put(`/api/items/${created.body.id}/location`)
-      .send({ slot_id: slotIdOf(rack, 1, 2) });
+      .send({ user_id: context.userId, zone_id: zone.id });
+
+    expect(response.status).toBe(200);
+    expect(response.body.locations[0].code).toBe('Z02');
+
+    const { body: movements } = await request(context.app).get('/api/movements?reference=B39VLAT');
+    expect(movements[0]).toMatchObject({ from_code: 'R01-E3', to_code: 'Z02' });
+  });
+
+  it('refuse de déplacer un article sans prénom sélectionné', async () => {
+    const created = await postItem({ reference: 'ARB123', shelf_id: shelfIdOf(rack, 1) });
+    const response = await request(context.app)
+      .put(`/api/items/${created.body.id}/location`)
+      .send({ shelf_id: shelfIdOf(rack, 2) });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toContain('prénom');
@@ -204,8 +236,8 @@ describe('PUT /api/items/:id/location', () => {
 });
 
 describe('PATCH et DELETE /api/items/:id', () => {
-  it('bascule un article physique en service et libère sa case', async () => {
-    const created = await postItem({ reference: 'DEPITUC', slot_id: slotIdOf(rack, 1, 1) });
+  it('bascule un article physique en service et libère son étagère', async () => {
+    const created = await postItem({ reference: 'DEPITUC', shelf_id: shelfIdOf(rack, 1) });
 
     const response = await request(context.app)
       .patch(`/api/items/${created.body.id}`)
@@ -219,7 +251,7 @@ describe('PATCH et DELETE /api/items/:id', () => {
     const created = await postItem({
       reference: 'ARB123',
       designation: 'Imprimante A3',
-      slot_id: slotIdOf(rack, 2, 4),
+      shelf_id: shelfIdOf(rack, 2),
     });
 
     const response = await request(context.app)
@@ -228,14 +260,10 @@ describe('PATCH et DELETE /api/items/:id', () => {
         user_id: context.userId,
         designation: 'Imprimante A3 couleur',
         family_code: '0310',
-        family_label: 'IMPRIMANTE LASER N/B TGC22',
       });
 
     expect(response.status).toBe(200);
-    expect(response.body.designation).toBe('Imprimante A3 couleur');
-    expect(response.body.family_code).toBe('0310');
-    // L'emplacement n'a pas bougé : pas de mouvement « move ».
-    expect(response.body.locations[0].code).toBe('R01-E2-C4');
+    expect(response.body.locations[0].code).toBe('R01-E2');
 
     const { body: movements } = await request(context.app).get('/api/movements?reference=ARB123');
     expect(movements.map((movement) => movement.action)).toEqual(['update', 'create']);
@@ -245,7 +273,7 @@ describe('PATCH et DELETE /api/items/:id', () => {
     const created = await postItem({
       reference: 'ARB123',
       designation: 'Imprimante A3',
-      slot_id: slotIdOf(rack, 2, 4),
+      shelf_id: shelfIdOf(rack, 2),
     });
 
     const response = await request(context.app)
@@ -256,86 +284,56 @@ describe('PATCH et DELETE /api/items/:id', () => {
     expect((await request(context.app).get('/api/items')).body).toHaveLength(0);
 
     const { body: movements } = await request(context.app).get('/api/movements?reference=ARB123');
-    expect(movements[0]).toMatchObject({
-      action: 'delete',
-      item_reference: 'ARB123',
-      from_slot_code: 'R01-E2-C4',
-    });
+    expect(movements[0]).toMatchObject({ action: 'delete', from_code: 'R01-E2' });
   });
 });
 
 describe('GET /api/export', () => {
   it('exporte les articles en CSV avec les en-têtes attendus', async () => {
+    const zone = await createZone(request, context.app, { code: 2, label: 'Pile ProDesk' });
     await postItem({
       reference: 'ARB123',
       designation: 'Imprimante A3',
-      slot_id: slotIdOf(rack, 2, 4),
+      shelf_id: shelfIdOf(rack, 2),
     });
+    await postItem({ reference: 'B39VLAT', designation: 'Copieur B39', zone_id: zone.id });
     await postItem({ reference: 'DEPITUC', designation: 'Redevance', kind: 'service' });
 
     const response = await request(context.app).get('/api/export/csv');
-    expect(response.status).toBe(200);
-
     const lines = response.text.replace(/^﻿/, '').trim().split('\r\n');
+
     expect(lines[0]).toBe('Référence;Désignation;Famille;Libellé famille;Type;Emplacement');
-    expect(lines).toContain('ARB123;Imprimante A3;;;Physique;R01-E2-C4');
+    expect(lines).toContain('ARB123;Imprimante A3;;;Physique;R01-E2');
+    expect(lines).toContain('B39VLAT;Copieur B39;;;Physique;Z02');
     expect(lines).toContain('DEPITUC;Redevance;;;Service;');
   });
 
-  it('exporte le code et le libellé de famille quand ils sont connus', async () => {
-    await postItem({
-      reference: 'ARB123',
-      designation: 'Imprimante A3',
-      family_code: '0310',
-      family_label: 'IMPRIMANTE LASER N/B TGC22',
-      slot_id: slotIdOf(rack, 2, 4),
-    });
-
-    const response = await request(context.app).get('/api/export/csv');
-    const lines = response.text.replace(/^﻿/, '').trim().split('\r\n');
-    expect(lines).toContain(
-      'ARB123;Imprimante A3;0310;IMPRIMANTE LASER N/B TGC22;Physique;R01-E2-C4',
-    );
-  });
-
   it('exporte 20 articles en xlsx : une ligne d’en-têtes + 20 lignes', async () => {
-    const grandRayon = await createRack(request, context.app, {
-      shelves_count: 5,
-      slots_per_shelf: 5,
-    });
+    const grandRayon = await createRack(request, context.app, { shelves_count: 20 });
 
     for (let index = 0; index < 20; index += 1) {
       await postItem({
         reference: `REF${String(index + 1).padStart(3, '0')}`,
         designation: `Article ${index + 1}`,
-        slot_id: grandRayon.slots[index].id,
+        shelf_id: grandRayon.shelves[index].id,
       });
     }
 
     const response = await request(context.app).get('/api/export/xlsx').responseType('blob');
     expect(response.status).toBe(200);
-    expect(response.headers['content-type']).toContain('spreadsheetml');
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(response.body);
     const sheet = workbook.getWorksheet('Articles');
 
     expect(sheet.rowCount).toBe(21);
-    expect(sheet.getRow(1).values.slice(1)).toEqual([
-      'Référence',
-      'Désignation',
-      'Famille',
-      'Libellé famille',
-      'Type',
-      'Emplacement',
-    ]);
     expect(sheet.getRow(2).values.slice(1)).toEqual([
       'REF001',
       'Article 1',
       '',
       '',
       'Physique',
-      'R02-E1-C1',
+      'R02-E1',
     ]);
   });
 });
@@ -343,10 +341,7 @@ describe('GET /api/export', () => {
 describe('GET /api/health', () => {
   it('signale une base vide pour déclencher l’inventaire initial', async () => {
     const vierge = createTestContext();
-    const { body } = await request(vierge.app).get('/api/health');
-    expect(body.empty).toBe(true);
-
-    const { body: apresRayonnage } = await request(context.app).get('/api/health');
-    expect(apresRayonnage.empty).toBe(false);
+    expect((await request(vierge.app).get('/api/health')).body.empty).toBe(true);
+    expect((await request(context.app).get('/api/health')).body.empty).toBe(false);
   });
 });

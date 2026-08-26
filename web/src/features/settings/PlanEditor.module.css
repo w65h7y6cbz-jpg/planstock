@@ -58,7 +58,7 @@
   gap: var(--space-2);
   margin: 0;
   padding: 0;
-  max-height: 320px;
+  max-height: 300px;
   overflow: auto;
   list-style: none;
 }
@@ -78,6 +78,46 @@
 .rowSelected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* Une zone n'a pas d'étagère : contour tireté, comme sur le plan. */
+.rowZone {
+  border-style: dashed;
+}
+
+.zoneNote {
+  font-style: italic;
+  color: var(--text-faint);
+}
+
+.aisleInput {
+  width: 92px;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-2);
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.planHeader {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.planHeader .field {
+  flex: 0 0 auto;
+}
+
+.planHeader select {
+  min-height: var(--tap-target);
+  min-width: 170px;
+  padding: 0 var(--space-3);
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
 }
 
 .code {

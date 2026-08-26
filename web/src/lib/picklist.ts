@@ -100,35 +100,36 @@ export function pendingPhysicalCount(entries: PickEntry[]): number {
   return entries.filter((entry) => isPhysical(entry.item) && !entry.checked).length;
 }
 
-export type SlotState = 'lit' | 'done';
+export type LocationState = 'lit' | 'done';
 
 /**
- * État de chaque case concernée par la liste : « allumé » tant qu'un article
- * reste à prélever, « validé » quand tous ceux de la case sont cochés.
+ * État de chaque emplacement concerné par la liste, indexé par son code
+ * (`R03-E2` ou `Z02`) : « allumé » tant qu'un article reste à prélever,
+ * « validé » quand tous ceux de l'emplacement sont cochés.
  */
-export function slotStates(entries: PickEntry[]): Map<number, SlotState> {
-  const states = new Map<number, SlotState>();
+export function locationStates(entries: PickEntry[]): Map<string, LocationState> {
+  const states = new Map<string, LocationState>();
 
   for (const entry of entries) {
     if (!isPhysical(entry.item)) continue;
     for (const location of entry.item.locations) {
-      const next: SlotState = entry.checked ? 'done' : 'lit';
-      // Une case reste allumée tant qu'au moins un de ses articles est à prendre.
-      if (states.get(location.slot_id) === 'lit') continue;
-      states.set(location.slot_id, next);
+      const next: LocationState = entry.checked ? 'done' : 'lit';
+      // Un emplacement reste allumé tant qu'un de ses articles est à prendre.
+      if (states.get(location.code) === 'lit') continue;
+      states.set(location.code, next);
     }
   }
   return states;
 }
 
 export interface RackHighlight {
-  /** Articles restant à prélever dans ce rayonnage. */
+  /** Articles restant à prélever dans ce rayonnage ou cette zone. */
   pending: number;
   /** Articles déjà cochés. */
   done: number;
 }
 
-/** Rayonnages à allumer sur la vue de dessus, avec le compte de leur badge. */
+/** Rayonnages et zones à allumer sur la vue de dessus, avec le compte du badge. */
 export function rackHighlights(entries: PickEntry[]): Map<number, RackHighlight> {
   const highlights = new Map<number, RackHighlight>();
 

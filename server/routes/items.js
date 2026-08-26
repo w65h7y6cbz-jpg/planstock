@@ -4,7 +4,8 @@ import { cleanDisplayReference, normalizeReference } from '../lib/reference.js';
 import {
   findItemById,
   findItemByReference,
-  findSlot,
+  findShelf,
+  findZone,
   listItems,
   recordMovement,
 } from '../lib/store.js';
@@ -34,15 +35,41 @@ function readFamily(value, fallback = null) {
   return String(value).trim() || null;
 }
 
-function readSlotId(value) {
+function readId(value, field) {
   if (value === undefined || value === null || value === '') return null;
   const id = Number(value);
-  if (!Number.isInteger(id) || id <= 0) throw badRequest('Emplacement invalide.');
+  if (!Number.isInteger(id) || id <= 0) throw badRequest(`${field} invalide.`);
   return id;
+}
+
+/**
+ * Emplacement demandé : une étagère (`shelf_id`) ou une zone (`zone_id`),
+ * jamais les deux. `undefined` si le corps n'en mentionne aucun.
+ */
+function readLocation(db, body) {
+  const shelfId = readId(body.shelf_id, 'Étagère');
+  const zoneId = readId(body.zone_id, 'Zone');
+
+  if (shelfId && zoneId) {
+    throw badRequest('Choisissez soit une étagère, soit une zone, pas les deux.');
+  }
+  if (shelfId) return findShelf(db, shelfId);
+  if (zoneId) return findZone(db, zoneId);
+  return body.shelf_id === undefined && body.zone_id === undefined ? undefined : null;
+}
+
+function locationColumns(location) {
+  return {
+    shelf_id: location?.kind === 'shelf' ? location.shelf_id : null,
+    zone_id: location?.kind === 'zone' ? location.zone_id : null,
+  };
 }
 
 export function createItemsRouter(db) {
   const router = Router();
+
+  const insertLocation = () =>
+    db.prepare('INSERT INTO item_locations (item_id, shelf_id, zone_id) VALUES (?, ?, ?)');
 
   router.get('/', (req, res) => {
     const search = normalizeReference(req.query.q ?? '');
@@ -90,16 +117,16 @@ export function createItemsRouter(db) {
     }
 
     const kind = readKind(body.kind);
-    const slotId = readSlotId(body.slot_id);
+    const requested = readLocation(db, body);
+    const location = requested ?? null;
 
-    if (isPhysical(kind) && !slotId) {
-      throw badRequest('Un article physique doit être rangé dans une case du plan.');
+    if (isPhysical(kind) && !location) {
+      throw badRequest('Un article physique doit être rangé sur une étagère ou une zone.');
     }
-    if (!isPhysical(kind) && slotId) {
+    if (!isPhysical(kind) && location) {
       throw badRequest('Un article Service ou Autre site n’a pas d’emplacement physique.');
     }
 
-    const slot = slotId ? findSlot(db, slotId) : null;
     const now = new Date().toISOString();
 
     const item = db.transaction(() => {
@@ -121,13 +148,11 @@ export function createItemsRouter(db) {
         );
 
       const created = findItemById(db, Number(info.lastInsertRowid));
-      if (slot) {
-        db.prepare('INSERT INTO item_locations (item_id, slot_id) VALUES (?, ?)').run(
-          created.id,
-          slot.slot_id,
-        );
+      if (location) {
+        const columns = locationColumns(location);
+        insertLocation().run(created.id, columns.shelf_id, columns.zone_id);
       }
-      recordMovement(db, { item: created, user, action: 'create', toSlot: slot });
+      recordMovement(db, { item: created, user, action: 'create', to: location });
       return findItemById(db, created.id);
     })();
 
@@ -156,20 +181,22 @@ export function createItemsRouter(db) {
     const familyCode = readFamily(body.family_code, item.family_code);
     const familyLabel = readFamily(body.family_label, item.family_label);
 
-    const currentSlot = item.locations[0] ?? null;
-    let targetSlot = currentSlot;
+    const current = item.locations[0] ?? null;
+    const requested = readLocation(db, body);
+    let target = current;
 
     if (!isPhysical(kind)) {
-      targetSlot = null;
-    } else if (body.slot_id !== undefined) {
-      const slotId = readSlotId(body.slot_id);
-      if (!slotId) throw badRequest('Un article physique doit être rangé dans une case du plan.');
-      targetSlot = findSlot(db, slotId);
-    } else if (!currentSlot) {
-      throw badRequest('Un article physique doit être rangé dans une case du plan.');
+      target = null;
+    } else if (requested !== undefined) {
+      if (!requested) {
+        throw badRequest('Un article physique doit être rangé sur une étagère ou une zone.');
+      }
+      target = requested;
+    } else if (!current) {
+      throw badRequest('Un article physique doit être rangé sur une étagère ou une zone.');
     }
 
-    const locationChanged = (currentSlot?.slot_id ?? null) !== (targetSlot?.slot_id ?? null);
+    const locationChanged = (current?.code ?? null) !== (target?.code ?? null);
     const fieldsChanged =
       reference !== item.reference ||
       designation !== item.designation ||
@@ -195,24 +222,16 @@ export function createItemsRouter(db) {
 
       if (locationChanged) {
         db.prepare('DELETE FROM item_locations WHERE item_id = ?').run(id);
-        if (targetSlot) {
-          db.prepare('INSERT INTO item_locations (item_id, slot_id) VALUES (?, ?)').run(
-            id,
-            targetSlot.slot_id,
-          );
+        if (target) {
+          const columns = locationColumns(target);
+          insertLocation().run(id, columns.shelf_id, columns.zone_id);
         }
       }
 
       const next = findItemById(db, id);
       if (fieldsChanged) recordMovement(db, { item: next, user, action: 'update' });
       if (locationChanged) {
-        recordMovement(db, {
-          item: next,
-          user,
-          action: 'move',
-          fromSlot: currentSlot,
-          toSlot: targetSlot,
-        });
+        recordMovement(db, { item: next, user, action: 'move', from: current, to: target });
       }
       return next;
     })();
@@ -220,7 +239,7 @@ export function createItemsRouter(db) {
     res.json(updated);
   });
 
-  /** Déplacement d'un article (drag & drop dans la vue de face). */
+  /** Déplacement d'un article (glisser-déposer d'une bande à l'autre, ou vers une zone). */
   router.put('/:id/location', (req, res) => {
     const user = requireUser(db, req);
     const id = routeId(req);
@@ -230,32 +249,23 @@ export function createItemsRouter(db) {
       throw badRequest('Un article Service ou Autre site n’a pas d’emplacement physique.');
     }
 
-    const slotId = readSlotId(req.body?.slot_id);
-    if (!slotId) throw badRequest('Choisissez une case de destination.');
-    const targetSlot = findSlot(db, slotId);
-    const currentSlot = item.locations[0] ?? null;
+    const target = readLocation(db, req.body ?? {});
+    if (!target) throw badRequest('Choisissez une étagère ou une zone de destination.');
 
-    if (currentSlot?.slot_id === targetSlot.slot_id) {
+    const current = item.locations[0] ?? null;
+    if (current?.code === target.code) {
       res.json(item);
       return;
     }
 
     const updated = db.transaction(() => {
       db.prepare('DELETE FROM item_locations WHERE item_id = ?').run(id);
-      db.prepare('INSERT INTO item_locations (item_id, slot_id) VALUES (?, ?)').run(
-        id,
-        targetSlot.slot_id,
-      );
+      const columns = locationColumns(target);
+      insertLocation().run(id, columns.shelf_id, columns.zone_id);
       db.prepare('UPDATE items SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), id);
 
       const next = findItemById(db, id);
-      recordMovement(db, {
-        item: next,
-        user,
-        action: 'move',
-        fromSlot: currentSlot,
-        toSlot: targetSlot,
-      });
+      recordMovement(db, { item: next, user, action: 'move', from: current, to: target });
       return next;
     })();
 
@@ -268,12 +278,7 @@ export function createItemsRouter(db) {
     const item = findItemById(db, id);
 
     db.transaction(() => {
-      recordMovement(db, {
-        item,
-        user,
-        action: 'delete',
-        fromSlot: item.locations[0] ?? null,
-      });
+      recordMovement(db, { item, user, action: 'delete', from: item.locations[0] ?? null });
       db.prepare('DELETE FROM items WHERE id = ?').run(id);
     })();
 

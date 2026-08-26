@@ -15,7 +15,7 @@ const BACKUP_PATTERN = /^planstock-\d{4}-\d{2}-\d{2}-\d{4}(-\d+)?\.db$/;
 const TABLES_IN_DEPENDENCY_ORDER = [
   'users',
   'racks',
-  'slots',
+  'shelves',
   'items',
   'item_locations',
   'movements',

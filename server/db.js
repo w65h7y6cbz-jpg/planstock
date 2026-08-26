@@ -38,15 +38,38 @@ export function applyMigrations(db, migrationsDir = MIGRATIONS_DIR) {
     .sort();
 
   const record = db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)');
+  const pending = files.filter((file) => !applied.has(file));
+  if (pending.length === 0) return [];
 
-  for (const file of files) {
-    if (applied.has(file)) continue;
-    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-    db.transaction(() => {
-      db.exec(sql);
-      record.run(file, new Date().toISOString());
-    })();
+  // Les migrations reconstruisent parfois une table (SQLite refuse DROP COLUMN
+  // sur une colonne citée par un CHECK). Clés étrangères désactivées et renommage
+  // « legacy » — qui ne réécrit pas les références des autres tables — le temps
+  // de la migration ; l'intégrité est revérifiée juste après.
+  const foreignKeysWereOn = db.pragma('foreign_keys', { simple: true }) === 1;
+  db.pragma('foreign_keys = OFF');
+  db.pragma('legacy_alter_table = ON');
+
+  try {
+    for (const file of pending) {
+      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      db.transaction(() => {
+        db.exec(sql);
+        record.run(file, new Date().toISOString());
+      })();
+    }
+  } finally {
+    db.pragma('legacy_alter_table = OFF');
+    if (foreignKeysWereOn) db.pragma('foreign_keys = ON');
   }
 
-  return files.filter((file) => !applied.has(file));
+  const violations = db.pragma('foreign_key_check');
+  if (violations.length > 0) {
+    throw new Error(
+      `Migration incohérente : ${violations.length} référence(s) orpheline(s) (${violations
+        .map((row) => row.table)
+        .join(', ')}).`,
+    );
+  }
+
+  return pending;
 }

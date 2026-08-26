@@ -92,7 +92,7 @@ describe('migrations', () => {
         'movements',
         'racks',
         'settings',
-        'slots',
+        'shelves',
         'users',
       ]),
     );

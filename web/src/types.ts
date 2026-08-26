@@ -2,24 +2,32 @@
 
 export type ItemKind = 'physical' | 'service' | 'other_site';
 
+/** Un rayonnage porte des étagères ; une zone (pile, palette, table…) n'en a pas. */
+export type RackKind = 'rack' | 'zone';
+
+/** Un emplacement est soit une étagère de rayonnage, soit une zone. */
+export interface Location {
+  kind: 'shelf' | 'zone';
+  shelf_id: number | null;
+  zone_id: number | null;
+  /** Rayonnage ou zone porteur. */
+  rack_id: number;
+  rack_code: number;
+  rack_kind: RackKind;
+  rack_label: string;
+  rack_aisle: string;
+  shelf_index: number | null;
+  /** `E2` pour une étagère, `Z02` pour une zone. */
+  short_code: string;
+  /** `R03-E2` ou `Z02` — identifiant lisible et unique d'un emplacement. */
+  code: string;
+}
+
 export interface User {
   id: number;
   first_name: string;
   active: boolean;
   created_at: string;
-}
-
-export interface Location {
-  slot_id: number;
-  rack_id: number;
-  rack_code: number;
-  rack_label: string;
-  shelf_index: number;
-  slot_index: number;
-  /** `E2-C4` */
-  short_code: string;
-  /** `R03-E2-C4` */
-  code: string;
 }
 
 export interface Item {
@@ -39,42 +47,48 @@ export interface Item {
   locations: Location[];
 }
 
-export type SlotItem = Pick<
+export type ShelfItem = Pick<
   Item,
   'id' | 'reference' | 'reference_display' | 'designation' | 'kind' | 'family_code' | 'family_label'
 >;
 
-export interface SlotContent {
+/** Bande d'étagère de la vue de face, avec les articles qu'elle porte. */
+export interface Shelf {
   id: number;
   rack_id: number;
   rack_code: number;
+  /** 1 = étagère du haut. */
   shelf_index: number;
-  slot_index: number;
   short_code: string;
   code: string;
-  items: SlotItem[];
+  items: ShelfItem[];
 }
 
 export interface Rack {
   id: number;
   code: number;
-  /** `R03` */
+  kind: RackKind;
+  is_zone: boolean;
+  /** `R03` ou `Z01` */
   rack_code: string;
   label: string;
+  /** Libellé d'allée facultatif, affiché en petit sur la vue de dessus. */
+  aisle: string;
   shelves_count: number;
-  slots_per_shelf: number;
   x: number;
   y: number;
   width: number;
   height: number;
   rotation: number;
-  slots_total: number;
   items_count: number;
   created_at: string;
 }
 
 export interface RackDetail extends Rack {
-  slots: SlotContent[];
+  /** Vide pour une zone. */
+  shelves: Shelf[];
+  /** Articles posés directement sur la zone ; vide pour un rayonnage. */
+  items: ShelfItem[];
 }
 
 export interface Movement {
@@ -85,10 +99,8 @@ export interface Movement {
   user_id: number | null;
   user_first_name: string;
   action: 'create' | 'move' | 'delete' | 'update';
-  from_slot_id: number | null;
-  from_slot_code: string | null;
-  to_slot_id: number | null;
-  to_slot_code: string | null;
+  from_code: string | null;
+  to_code: string | null;
   created_at: string;
 }
 
@@ -102,7 +114,7 @@ export interface SearchResult {
 export interface Health {
   ok: boolean;
   counts: { users: number; racks: number; items: number };
-  /** Base sans rayonnage ni article : déclenche le mode Inventaire initial. */
+  /** Base sans emplacement ni article : déclenche le mode Inventaire initial. */
   empty: boolean;
 }
 

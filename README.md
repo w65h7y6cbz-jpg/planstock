@@ -60,11 +60,11 @@ identifié : `user_id` dans le corps de la requête, la query string ou l'en-tê
 | --- | --- | --- |
 | `GET` | `/api/health` | état, compteurs, `empty` (déclenche l'inventaire initial) |
 | `GET` `POST` `PATCH` | `/api/users` | liste, ajout et désactivation des prénoms |
-| `GET` `POST` `PATCH` `DELETE` | `/api/racks` | rayonnages ; les cases sont générées automatiquement |
-| `GET` | `/api/racks/:id/slots` | cases d'un rayonnage avec leur contenu |
+| `GET` `POST` `PATCH` `DELETE` | `/api/racks` | rayonnages et zones ; les étagères sont générées automatiquement |
+| `GET` | `/api/racks/:id/shelves` | étagères d'un rayonnage avec leur contenu |
 | `GET` | `/api/items` · `/api/items/search?q=` | recherche exacte puis par préfixe |
 | `POST` `PATCH` `DELETE` | `/api/items` | création, modification, suppression |
-| `PUT` | `/api/items/:id/location` | déplacement d'un article (drag & drop) |
+| `PUT` | `/api/items/:id/location` | déplacement vers une étagère (`shelf_id`) ou une zone (`zone_id`) |
 | `GET` | `/api/movements?reference=` | historique filtrable |
 | `GET` `PUT` | `/api/settings` | réglages (thème, nom du local…) |
 | `GET` | `/api/export/xlsx` · `/api/export/csv` | export des articles (avec famille) |
@@ -88,18 +88,27 @@ fourni par l'utilisateur.
 
 ## Codes d'emplacement
 
-Format : `R{rayon}-E{étagère}-C{case}` — par exemple `R03-E2-C4` désigne le
-rayonnage 3, l'étagère 2 (1 = étagère du bas), case 4 (1 = case de gauche vue
-de face). Ce code est toujours **calculé**, jamais saisi à la main.
+Deux sortes d'emplacements, dont le code est toujours **calculé**, jamais saisi :
+
+- **Étagère de rayonnage** : `R{rayon sur 2 chiffres}-E{étagère}` — `R03-E2`
+  désigne le rayonnage 3, étagère 2. **L'étagère 1 est celle du haut** ; la vue
+  de face les liste de haut en bas. La case n'existe pas : l'étagère est l'unité
+  la plus fine.
+- **Zone** : `Z{numéro sur 2 chiffres}` — `Z01`. Une zone est un emplacement
+  sans étagère : pile au sol, palette, cage grillagée, table, présentoir à
+  roulettes. Les articles y sont posés directement.
+
+`R01` et `Z01` peuvent coexister : la numérotation est indépendante.
 
 ## Avancement
 
 - [x] Étape 1 — Vérification de l'environnement, arborescence, README
 - [x] Étape 2 — Serveur Express + base SQLite + migrations + sauvegardes + API REST
 - [x] Étape 3 — Squelette du front (thème clair/sombre, layout, sélecteur de prénom)
-- [x] Étape 4 — Éditeur de plan (rayonnages, cases, vue de dessus)
+- [x] Étape 4 — Éditeur de plan (rayonnages, zones, étagères, vue de dessus)
 - [x] Étape 5 — Vue de face, recherche, liste de préparation
 - [x] Étape 6 — Édition d'articles, drag & drop, historique
 - [x] Étape 7 — Mode Inventaire initial
 - [x] Étape 8 — Paramètres, export Excel/CSV, sauvegardes, données de démo
+- [x] Refonte — étagères à la place des cases, zones, vue de face en bandes
 - [ ] Étape 9 — Raccourci bureau, README final, critères d'acceptation

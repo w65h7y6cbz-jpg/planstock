@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
-import type { RackHighlight, SlotState } from '../lib/picklist';
-import type { Rack, RackDetail, SlotContent, SlotItem } from '../types';
-import { RackView, type SlotSelection } from './RackView';
+import type { LocationState, RackHighlight } from '../lib/picklist';
+import type { Rack, RackDetail, ShelfItem } from '../types';
+import { RackView, type LocationSelection, type MoveTarget } from './RackView';
 import { TopView } from './TopView';
 import styles from './PlanPanel.module.css';
 
 const AUTO_OPEN_KEY = 'planstock.auto_open_rack';
 
 /**
- * Demande d'ouverture de la vue de face.
- * `force` distingue une action explicite (clic sur un emplacement, dépôt sur un
- * rayonnage) d'un ajout à la liste, soumis au réglage « Ouvrir automatiquement ».
- * `nonce` permet de redemander deux fois de suite la même case.
+ * Demande d'ouverture d'un emplacement.
+ * `force` distingue une action explicite (clic sur un emplacement, dépôt) d'un
+ * ajout à la liste, soumis au réglage « Ouvrir automatiquement ».
+ * `nonce` permet de redemander deux fois de suite le même emplacement.
  */
 export interface PlanFocus {
   rackId: number;
-  slotId: number | null;
+  /** Code de l'emplacement à mettre en évidence (`R03-E2`, `Z02`). */
+  code: string | null;
+  /** Référence normalisée de l'article à mettre en avant. */
+  reference: string | null;
   force: boolean;
   nonce: number;
 }
@@ -25,18 +28,17 @@ interface PlanPanelProps {
   racks: Rack[];
   planWidth: number;
   planHeight: number;
-  slotStates: Map<number, SlotState>;
+  locationStates: Map<string, LocationState>;
   highlight: Map<number, RackHighlight>;
   focus: PlanFocus | null;
   loading: boolean;
   canEdit: boolean;
-  selection: SlotSelection | null;
-  /** Incrémenté après chaque modification d'article pour recharger le rayonnage. */
+  selection: LocationSelection | null;
+  /** Incrémenté après chaque modification d'article pour recharger l'emplacement. */
   refreshToken: number;
-  onMoveItem: (item: SlotItem, slot: SlotContent) => void;
-  onDropOnRack: (item: SlotItem, rackId: number) => void;
-  onEditItem: (item: SlotItem) => void;
-  onDeleteItem: (item: SlotItem) => void;
+  onMoveItem: (item: ShelfItem, target: MoveTarget, code: string) => void;
+  onEditItem: (item: ShelfItem) => void;
+  onDeleteItem: (item: ShelfItem) => void;
 }
 
 function readAutoOpen(): boolean {
@@ -51,7 +53,7 @@ export function PlanPanel({
   racks,
   planWidth,
   planHeight,
-  slotStates,
+  locationStates,
   highlight,
   focus,
   loading,
@@ -59,13 +61,13 @@ export function PlanPanel({
   selection,
   refreshToken,
   onMoveItem,
-  onDropOnRack,
   onEditItem,
   onDeleteItem,
 }: PlanPanelProps) {
   const [openRackId, setOpenRackId] = useState<number | null>(null);
   const [rackDetail, setRackDetail] = useState<RackDetail | null>(null);
-  const [focusSlotId, setFocusSlotId] = useState<number | null>(null);
+  const [focusCode, setFocusCode] = useState<string | null>(null);
+  const [focusReference, setFocusReference] = useState<string | null>(null);
   const [autoOpen, setAutoOpen] = useState(readAutoOpen);
 
   useEffect(() => {
@@ -76,17 +78,21 @@ export function PlanPanel({
     }
   }, [autoOpen]);
 
-  const openRack = useCallback((rackId: number, slotId: number | null = null) => {
-    setOpenRackId(rackId);
-    setFocusSlotId(slotId);
-  }, []);
+  const openRack = useCallback(
+    (rackId: number, code: string | null = null, reference: string | null = null) => {
+      setOpenRackId(rackId);
+      setFocusCode(code);
+      setFocusReference(reference);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!focus || (!focus.force && !autoOpen)) return;
-    openRack(focus.rackId, focus.slotId);
+    openRack(focus.rackId, focus.code, focus.reference);
   }, [focus, autoOpen, openRack]);
 
-  // Détail du rayonnage ouvert ; rechargé après chaque modification du stock.
+  // Détail de l'emplacement ouvert ; rechargé après chaque modification du stock.
   useEffect(() => {
     if (openRackId === null) {
       setRackDetail(null);
@@ -102,7 +108,9 @@ export function PlanPanel({
     };
   }, [openRackId, racks, refreshToken]);
 
-  const ordered = [...racks].sort((a, b) => a.code - b.code);
+  const ordered = [...racks].sort((a, b) =>
+    a.kind === b.kind ? a.code - b.code : a.kind === 'rack' ? -1 : 1,
+  );
   const currentIndex = ordered.findIndex((rack) => rack.id === openRackId);
   const previous = currentIndex > 0 ? ordered[currentIndex - 1] : null;
   const next =
@@ -123,7 +131,8 @@ export function PlanPanel({
           Ouvrir automatiquement
         </label>
         <span className={styles.meta}>
-          {racks.length} rayonnage(s)
+          {racks.filter((rack) => !rack.is_zone).length} rayonnage(s) ·{' '}
+          {racks.filter((rack) => rack.is_zone).length} zone(s)
           {pending > 0 ? ` · ${pending} à prélever` : ''}
         </span>
       </div>
@@ -134,8 +143,9 @@ export function PlanPanel({
         <RackView
           rack={rackDetail}
           racks={ordered}
-          slotStates={slotStates}
-          focusSlotId={focusSlotId}
+          locationStates={locationStates}
+          focusCode={focusCode}
+          focusReference={focusReference}
           canEdit={canEdit}
           selection={selection}
           onBack={() => setOpenRackId(null)}
@@ -143,7 +153,6 @@ export function PlanPanel({
           onNext={next ? () => openRack(next.id) : undefined}
           onOpenRack={(rackId) => openRack(rackId)}
           onMoveItem={onMoveItem}
-          onDropOnRack={onDropOnRack}
           onEditItem={onEditItem}
           onDeleteItem={onDeleteItem}
         />
@@ -154,7 +163,11 @@ export function PlanPanel({
           planHeight={planHeight}
           selectedRackId={openRackId}
           highlight={highlight}
-          onSelectRack={(rack) => openRack(rack.id)}
+          onSelectRack={(rack) => {
+            // Une zone peut être choisie directement depuis la vue de dessus.
+            if (rack.is_zone && selection?.onSelectZone) selection.onSelectZone(rack);
+            else openRack(rack.id);
+          }}
         />
       )}
     </div>

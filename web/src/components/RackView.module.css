@@ -36,6 +36,17 @@
   white-space: nowrap;
 }
 
+.aisle {
+  padding: 1px var(--space-2);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -62,47 +73,26 @@
   cursor: not-allowed;
 }
 
-.shelves {
+/* Une bande par étagère, E1 en haut. */
+.bands {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   flex: 1;
   min-height: 0;
   padding: var(--space-3);
-  overflow: auto;
+  overflow-y: auto;
   background: var(--bg-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
 
-/* Les étagères se répartissent la hauteur disponible, sans devenir géantes
-   quand le rayonnage n'en compte que deux ou trois. */
-.shelf {
-  display: grid;
-  gap: var(--space-2);
-  flex: 1 1 auto;
-  min-height: 72px;
-  max-height: 150px;
-  align-items: stretch;
-}
-
-.shelfLabel {
+.band {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 34px;
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.slot {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-height: 64px;
-  padding: var(--space-2);
+  gap: var(--space-3);
+  align-items: flex-start;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -111,37 +101,214 @@
     border-color var(--transition);
 }
 
-/* Case contenant un article de la liste restant à prélever. */
-.slotLit {
+/* Étagère contenant un article de la liste restant à prélever. */
+.bandLit {
   background: var(--accent-soft);
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-/* Case dont tous les articles de la liste sont cochés. */
-.slotDone {
+/* Étagère dont tous les articles de la liste sont cochés. */
+.bandDone {
   background: var(--success-soft);
   border-color: var(--success);
 }
 
-.slotFocus {
+.bandFocus {
   animation: pulse 1000ms ease;
 }
 
-/* Case survolée pendant un glisser-déposer. */
-.slotOver {
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  30%,
+  70% {
+    box-shadow:
+      inset 0 0 0 2px var(--accent),
+      0 0 0 6px var(--accent-soft);
+  }
+}
+
+.bandOver {
   background: var(--accent-soft);
   border-color: var(--accent);
   box-shadow: inset 0 0 0 2px var(--accent);
 }
 
-.slotSelectable {
+.bandSelectable {
   cursor: pointer;
 }
 
-.slotSelectable:hover {
+.bandSelectable:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+
+.bandLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  min-width: 44px;
+  padding-top: 2px;
+}
+
+.bandCode {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.bandCount {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.bandEmpty {
+  align-self: center;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.pellets {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.pelletWrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.pellet {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-height: 30px;
+  max-width: 260px;
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  touch-action: none;
+}
+
+.pelletRef {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pelletDesignation {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pelletDraggable {
+  cursor: grab;
+}
+
+.pelletDragging {
+  opacity: 0.35;
+}
+
+/* Référence tout juste ajoutée à la liste de préparation. */
+.pelletHighlighted {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.pelletHighlighted .pelletDesignation {
+  color: var(--accent-contrast);
+  opacity: 0.85;
+}
+
+.pelletLit {
+  border-color: var(--accent);
+}
+
+.pelletDone {
+  border-color: var(--success);
+  text-decoration: line-through;
+}
+
+.pelletOverlay {
+  cursor: grabbing;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+
+.pelletMenuButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  min-height: 30px;
+  margin-left: 2px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.pelletMenuButton:hover {
+  color: var(--text);
+  background: var(--bg-sunken);
+}
+
+.pelletMenu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 2px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 130px;
+  padding: var(--space-1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.pelletMenuItem {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  font-size: 14px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.pelletMenuItem:hover {
+  background: var(--bg-sunken);
+}
+
+.pelletMenuDanger:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 .selectionBanner {
@@ -196,154 +363,20 @@
   border-radius: var(--radius-sm);
 }
 
+.rackChipZone {
+  border-style: dashed;
+}
+
 .rackChipOver {
   color: var(--accent-contrast);
   background: var(--accent);
   border-color: var(--accent);
 }
 
-@keyframes pulse {
-  0%,
-  100% {
-    box-shadow: inset 0 0 0 1px var(--accent);
-  }
-  30%,
-  70% {
-    box-shadow:
-      inset 0 0 0 2px var(--accent),
-      0 0 0 6px var(--accent-soft);
-  }
-}
-
-.slotCode {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
-.slotLit .slotCode,
-.slotDone .slotCode {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.pellets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
-.pelletWrapper {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-}
-
-.pellet {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  max-width: 100%;
-  padding: 0 var(--space-2);
-  overflow: hidden;
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: var(--bg);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  touch-action: none;
-}
-
-.pelletDraggable {
-  cursor: grab;
-}
-
-.pelletDragging {
-  opacity: 0.35;
-}
-
-.pelletOverlay {
-  cursor: grabbing;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border-color: var(--accent);
-  box-shadow: var(--shadow-md);
-}
-
-.pelletMenuButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  min-height: 28px;
-  margin-left: 2px;
-  font-size: 14px;
-  line-height: 1;
-  color: var(--text-muted);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-}
-
-.pelletMenuButton:hover {
-  color: var(--text);
-  background: var(--bg-sunken);
-}
-
-.pelletMenu {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 2px);
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  min-width: 130px;
-  padding: var(--space-1);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
-}
-
-.pelletMenuItem {
-  min-height: var(--tap-target);
-  padding: 0 var(--space-3);
-  font-size: 14px;
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-}
-
-.pelletMenuItem:hover {
-  background: var(--bg-sunken);
-}
-
-.pelletMenuDanger:hover {
-  color: var(--danger);
-  background: var(--danger-soft);
-}
-
-.pelletLit {
-  color: var(--accent-contrast);
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.pelletDone {
-  color: var(--text);
-  background: var(--success-soft);
-  border-color: var(--success);
-  text-decoration: line-through;
-}
-
 .legend {
   display: flex;
   gap: var(--space-4);
+  flex-wrap: wrap;
   margin: 0;
   font-size: 12px;
   color: var(--text-muted);
@@ -369,4 +402,25 @@
 .swatchDone {
   background: var(--success-soft);
   border: 1px solid var(--success);
+}
+
+/* ---- Zone : pas d'étagère, une simple liste d'articles posés ---- */
+
+.zoneItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-content: flex-start;
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-3);
+  overflow-y: auto;
+  background: var(--bg-sunken);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+}
+
+.zoneEmpty {
+  margin: auto;
+  color: var(--text-faint);
 }

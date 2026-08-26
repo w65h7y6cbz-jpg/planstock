@@ -4,14 +4,18 @@ import { layoutRacks } from '../../lib/planLayout';
 import styles from './InventoryMode.module.css';
 
 const DEFAULT_RACKS = 4;
-const DEFAULT_SHELVES = 4;
-const DEFAULT_SLOTS = 5;
-const MAX_RACKS = 30;
+const DEFAULT_ZONES = 2;
+const DEFAULT_SHELVES = 5;
+const MAX_ITEMS = 40;
 
 interface RackDraft {
   label: string;
+  aisle: string;
   shelves: number;
-  slots: number;
+}
+
+interface ZoneDraft {
+  label: string;
 }
 
 interface RackWizardProps {
@@ -20,66 +24,77 @@ interface RackWizardProps {
   error: string | null;
 }
 
+const makeRacks = (count: number): RackDraft[] =>
+  Array.from({ length: count }, () => ({ label: '', aisle: '', shelves: DEFAULT_SHELVES }));
+
+const makeZones = (count: number): ZoneDraft[] => Array.from({ length: count }, () => ({ label: '' }));
+
 export function RackWizard({ onCreate, onSkip, error }: RackWizardProps) {
-  const [count, setCount] = useState(DEFAULT_RACKS);
-  const [drafts, setDrafts] = useState<RackDraft[]>(() =>
-    Array.from({ length: DEFAULT_RACKS }, () => ({
-      label: '',
-      shelves: DEFAULT_SHELVES,
-      slots: DEFAULT_SLOTS,
-    })),
-  );
+  const [rackCount, setRackCount] = useState(DEFAULT_RACKS);
+  const [zoneCount, setZoneCount] = useState(DEFAULT_ZONES);
+  const [racks, setRacks] = useState<RackDraft[]>(() => makeRacks(DEFAULT_RACKS));
+  const [zones, setZones] = useState<ZoneDraft[]>(() => makeZones(DEFAULT_ZONES));
   const [busy, setBusy] = useState(false);
 
-  function resize(next: number) {
-    const clamped = Math.min(Math.max(next || 1, 1), MAX_RACKS);
-    setCount(clamped);
-    setDrafts((current) => {
-      if (clamped <= current.length) return current.slice(0, clamped);
-      return [
-        ...current,
-        ...Array.from({ length: clamped - current.length }, () => ({
-          label: '',
-          shelves: DEFAULT_SHELVES,
-          slots: DEFAULT_SLOTS,
-        })),
-      ];
-    });
+  function resizeRacks(next: number) {
+    const clamped = Math.min(Math.max(next || 0, 0), MAX_ITEMS);
+    setRackCount(clamped);
+    setRacks((current) =>
+      clamped <= current.length
+        ? current.slice(0, clamped)
+        : [...current, ...makeRacks(clamped - current.length)],
+    );
   }
 
-  function patch(index: number, changes: Partial<RackDraft>) {
-    setDrafts((current) =>
-      current.map((draft, position) => (position === index ? { ...draft, ...changes } : draft)),
+  function resizeZones(next: number) {
+    const clamped = Math.min(Math.max(next || 0, 0), MAX_ITEMS);
+    setZoneCount(clamped);
+    setZones((current) =>
+      clamped <= current.length
+        ? current.slice(0, clamped)
+        : [...current, ...makeZones(clamped - current.length)],
     );
   }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || racks.length + zones.length === 0) return;
     setBusy(true);
-    const geometries = layoutRacks(drafts.length);
-    await onCreate(
-      drafts.map((draft, index) => ({
+
+    const geometries = layoutRacks(racks.length + zones.length);
+    const payloads: RackPayload[] = [
+      ...racks.map((draft, index) => ({
+        kind: 'rack' as const,
         code: index + 1,
         label: draft.label.trim(),
+        aisle: draft.aisle.trim(),
         shelves_count: draft.shelves,
-        slots_per_shelf: draft.slots,
         ...geometries[index],
       })),
-    );
+      ...zones.map((draft, index) => ({
+        kind: 'zone' as const,
+        code: index + 1,
+        label: draft.label.trim(),
+        shelves_count: 0,
+        ...geometries[racks.length + index],
+      })),
+    ];
+
+    await onCreate(payloads);
     setBusy(false);
   }
 
-  const totalSlots = drafts.reduce((total, draft) => total + draft.shelves * draft.slots, 0);
+  const totalShelves = racks.reduce((total, draft) => total + draft.shelves, 0);
 
   return (
     <div className={styles.wizard}>
       <form className={styles.wizardCard} onSubmit={submit}>
         <h2 className={styles.wizardTitle}>Dessinons d’abord le plan du local</h2>
         <p className={styles.wizardLead}>
-          Combien de rayonnages y a-t-il dans le local ? Indiquez ensuite, pour chacun, son nombre
-          d’étagères et de cases par étagère. Les rectangles seront placés automatiquement sur la
-          vue de dessus : vous les déplacerez ensuite à leur vraie position.
+          Combien de rayonnages, et combien d’étagères chacun ? Ajoutez aussi les zones sans
+          étagère : piles au sol, palettes, cage grillagée, table, présentoir. Les rectangles
+          seront placés automatiquement sur la vue de dessus, vous les déplacerez ensuite à leur
+          vraie position.
         </p>
 
         {error ? <p className={styles.error}>{error}</p> : null}
@@ -89,51 +104,100 @@ export function RackWizard({ onCreate, onSkip, error }: RackWizardProps) {
             Nombre de rayonnages
             <input
               type="number"
-              min={1}
-              max={MAX_RACKS}
-              value={count}
+              min={0}
+              max={MAX_ITEMS}
+              value={rackCount}
               autoFocus
-              onChange={(event) => resize(Number(event.target.value))}
+              onChange={(event) => resizeRacks(Number(event.target.value))}
+            />
+          </label>
+          <label className={styles.field}>
+            Nombre de zones
+            <input
+              type="number"
+              min={0}
+              max={MAX_ITEMS}
+              value={zoneCount}
+              onChange={(event) => resizeZones(Number(event.target.value))}
             />
           </label>
           <p className={styles.wizardSummary}>
-            {drafts.length} rayonnage(s) · {totalSlots} cases au total
+            {racks.length} rayonnage(s) · {totalShelves} étagères · {zones.length} zone(s)
           </p>
         </div>
 
         <ul className={styles.rackRows}>
-          {drafts.map((draft, index) => (
-            <li key={index} className={styles.rackRow}>
+          {racks.map((draft, index) => (
+            <li key={`rack-${index}`} className={styles.rackRow}>
               <span className={styles.rackCode}>R{String(index + 1).padStart(2, '0')}</span>
               <input
                 type="text"
                 value={draft.label}
                 placeholder="Libellé (facultatif) — ex. Rayon imprimantes"
                 aria-label={`Libellé du rayonnage ${index + 1}`}
-                onChange={(event) => patch(index, { label: event.target.value })}
+                onChange={(event) =>
+                  setRacks((current) =>
+                    current.map((row, position) =>
+                      position === index ? { ...row, label: event.target.value } : row,
+                    ),
+                  )
+                }
               />
+              <label>
+                Allée
+                <input
+                  type="text"
+                  value={draft.aisle}
+                  placeholder="A"
+                  aria-label={`Allée du rayonnage ${index + 1}`}
+                  onChange={(event) =>
+                    setRacks((current) =>
+                      current.map((row, position) =>
+                        position === index ? { ...row, aisle: event.target.value } : row,
+                      ),
+                    )
+                  }
+                />
+              </label>
               <label>
                 Étagères
                 <input
                   type="number"
                   min={1}
-                  max={20}
+                  max={30}
                   value={draft.shelves}
                   aria-label={`Étagères du rayonnage ${index + 1}`}
-                  onChange={(event) => patch(index, { shelves: Number(event.target.value) || 1 })}
+                  onChange={(event) =>
+                    setRacks((current) =>
+                      current.map((row, position) =>
+                        position === index
+                          ? { ...row, shelves: Number(event.target.value) || 1 }
+                          : row,
+                      ),
+                    )
+                  }
                 />
               </label>
-              <label>
-                Cases
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={draft.slots}
-                  aria-label={`Cases du rayonnage ${index + 1}`}
-                  onChange={(event) => patch(index, { slots: Number(event.target.value) || 1 })}
-                />
-              </label>
+            </li>
+          ))}
+
+          {zones.map((draft, index) => (
+            <li key={`zone-${index}`} className={`${styles.rackRow} ${styles.zoneRow}`}>
+              <span className={styles.rackCode}>Z{String(index + 1).padStart(2, '0')}</span>
+              <input
+                type="text"
+                value={draft.label}
+                placeholder="Libellé (facultatif) — ex. Pile ProDesk, Palette réception"
+                aria-label={`Libellé de la zone ${index + 1}`}
+                onChange={(event) =>
+                  setZones((current) =>
+                    current.map((row, position) =>
+                      position === index ? { label: event.target.value } : row,
+                    ),
+                  )
+                }
+              />
+              <span className={styles.zoneNote}>zone — pas d’étagère</span>
             </li>
           ))}
         </ul>
@@ -142,7 +206,11 @@ export function RackWizard({ onCreate, onSkip, error }: RackWizardProps) {
           <button type="button" className={styles.button} onClick={onSkip} disabled={busy}>
             Plus tard
           </button>
-          <button type="submit" className={`${styles.button} ${styles.primary}`} disabled={busy}>
+          <button
+            type="submit"
+            className={`${styles.button} ${styles.primary}`}
+            disabled={busy || racks.length + zones.length === 0}
+          >
             {busy ? 'Création…' : 'Créer le plan'}
           </button>
         </div>

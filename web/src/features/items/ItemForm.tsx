@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type ItemPayload } from '../../api';
-import type { Item, ItemKind, Rack, SlotContent } from '../../types';
+import type { Item, ItemKind, Rack, Shelf } from '../../types';
 import styles from './ItemForm.module.css';
 
 const KIND_LABELS: { value: ItemKind; label: string }[] = [
@@ -14,10 +14,10 @@ interface ItemFormProps {
   item: Item | null;
   presetReference?: string;
   racks: Rack[];
-  /** Case choisie en cliquant directement sur le plan. */
-  pickedSlot: SlotContent | null;
-  /** Active la sélection d'une case sur le plan pendant que le formulaire est ouvert. */
-  onSlotPickingChange: (active: boolean) => void;
+  /** Emplacement choisi en cliquant directement sur le plan. */
+  picked: { shelf?: Shelf; zone?: Rack } | null;
+  /** Active la sélection d'un emplacement pendant que le formulaire est ouvert. */
+  onPickingChange: (active: boolean) => void;
   onSubmit: (payload: ItemPayload) => Promise<boolean>;
   onCancel: () => void;
   error: string | null;
@@ -27,8 +27,8 @@ export function ItemForm({
   item,
   presetReference = '',
   racks,
-  pickedSlot,
-  onSlotPickingChange,
+  picked,
+  onPickingChange,
   onSubmit,
   onCancel,
   error,
@@ -41,9 +41,12 @@ export function ItemForm({
   const [familyCode, setFamilyCode] = useState(item?.family_code ?? '');
   const [familyLabel, setFamilyLabel] = useState(item?.family_label ?? '');
   const [rackId, setRackId] = useState<number | null>(current?.rack_id ?? racks[0]?.id ?? null);
-  const [slotId, setSlotId] = useState<number | null>(current?.slot_id ?? null);
-  const [slots, setSlots] = useState<SlotContent[]>([]);
+  const [shelfId, setShelfId] = useState<number | null>(current?.shelf_id ?? null);
+  const [shelves, setShelves] = useState<Shelf[]>([]);
   const [busy, setBusy] = useState(false);
+
+  const selectedRack = racks.find((rack) => rack.id === rackId) ?? null;
+  const isZone = selectedRack?.is_zone ?? false;
 
   const referenceRef = useRef<HTMLInputElement>(null);
 
@@ -54,41 +57,48 @@ export function ItemForm({
 
   // Le clic sur le plan ne vaut que pour un article physique.
   useEffect(() => {
-    onSlotPickingChange(kind === 'physical');
-    return () => onSlotPickingChange(false);
-  }, [kind, onSlotPickingChange]);
+    onPickingChange(kind === 'physical');
+    return () => onPickingChange(false);
+  }, [kind, onPickingChange]);
 
   useEffect(() => {
-    if (!pickedSlot) return;
-    setRackId(pickedSlot.rack_id);
-    setSlotId(pickedSlot.id);
-  }, [pickedSlot]);
+    if (!picked) return;
+    if (picked.shelf) {
+      setRackId(picked.shelf.rack_id);
+      setShelfId(picked.shelf.id);
+    } else if (picked.zone) {
+      setRackId(picked.zone.id);
+      setShelfId(null);
+    }
+  }, [picked]);
 
   useEffect(() => {
-    if (rackId === null) {
-      setSlots([]);
+    if (rackId === null || isZone) {
+      setShelves([]);
+      setShelfId(null);
       return;
     }
     let cancelled = false;
     void api.racks
-      .slots(rackId)
+      .shelves(rackId)
       .then((list) => {
         if (cancelled) return;
-        setSlots(list);
-        // Si la case sélectionnée appartient à un autre rayonnage, on la libère.
-        setSlotId((currentSlot) =>
-          currentSlot !== null && list.some((slot) => slot.id === currentSlot)
-            ? currentSlot
+        setShelves(list);
+        // Si l'étagère sélectionnée appartient à un autre rayonnage, on la libère.
+        setShelfId((currentShelf) =>
+          currentShelf !== null && list.some((shelf) => shelf.id === currentShelf)
+            ? currentShelf
             : null,
         );
       })
-      .catch(() => !cancelled && setSlots([]));
+      .catch(() => !cancelled && setShelves([]));
     return () => {
       cancelled = true;
     };
-  }, [rackId]);
+  }, [rackId, isZone]);
 
-  const chosenSlot = slots.find((slot) => slot.id === slotId) ?? null;
+  const chosenShelf = shelves.find((shelf) => shelf.id === shelfId) ?? null;
+  const chosenCode = isZone ? (selectedRack?.rack_code ?? null) : (chosenShelf?.code ?? null);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -100,7 +110,8 @@ export function ItemForm({
       kind,
       family_code: familyCode.trim() || null,
       family_label: familyLabel.trim() || null,
-      slot_id: kind === 'physical' ? slotId : null,
+      shelf_id: kind === 'physical' && !isZone ? shelfId : null,
+      zone_id: kind === 'physical' && isZone ? rackId : null,
     });
     setBusy(false);
     if (!success) referenceRef.current?.focus();
@@ -179,14 +190,14 @@ export function ItemForm({
         <div className={styles.location}>
           <div className={styles.locationHeader}>
             <span className={styles.locationTitle}>Emplacement</span>
-            <span className={`${styles.chosen} ${chosenSlot ? '' : styles.chosenEmpty}`}>
-              {chosenSlot?.code ?? 'à choisir'}
+            <span className={`${styles.chosen} ${chosenCode ? '' : styles.chosenEmpty}`}>
+              {chosenCode ?? 'à choisir'}
             </span>
           </div>
 
           <div className={styles.row}>
             <label className={styles.field}>
-              Rayonnage
+              Rayonnage ou zone
               <select
                 value={rackId ?? ''}
                 onChange={(event) =>
@@ -202,18 +213,19 @@ export function ItemForm({
               </select>
             </label>
             <label className={styles.field}>
-              Case
+              Étagère
               <select
-                value={slotId ?? ''}
+                value={shelfId ?? ''}
+                disabled={isZone}
                 onChange={(event) =>
-                  setSlotId(event.target.value === '' ? null : Number(event.target.value))
+                  setShelfId(event.target.value === '' ? null : Number(event.target.value))
                 }
               >
-                <option value="">—</option>
-                {slots.map((slot) => (
-                  <option key={slot.id} value={slot.id}>
-                    {slot.short_code}
-                    {slot.items.length > 0 ? ` (${slot.items.length})` : ''}
+                <option value="">{isZone ? 'aucune (zone)' : '—'}</option>
+                {shelves.map((shelf) => (
+                  <option key={shelf.id} value={shelf.id}>
+                    {shelf.short_code}
+                    {shelf.items.length > 0 ? ` (${shelf.items.length})` : ''}
                   </option>
                 ))}
               </select>
@@ -221,7 +233,8 @@ export function ItemForm({
           </div>
 
           <p className={`${styles.pickHint} ${styles.pickActive}`}>
-            Vous pouvez aussi cliquer directement une case sur le plan à droite.
+            Vous pouvez aussi cliquer directement une étagère (vue de face) ou une zone (vue de
+            dessus) sur le plan à droite.
           </p>
         </div>
       ) : (

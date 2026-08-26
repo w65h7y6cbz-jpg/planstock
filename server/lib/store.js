@@ -1,4 +1,4 @@
-import { formatLocationCode, formatSlotShortCode } from './locationCode.js';
+import { formatShelfCode, formatShelfShortCode, formatZoneCode } from './locationCode.js';
 import { conflict, notFound } from './http.js';
 
 const ITEM_COLUMNS = `
@@ -6,32 +6,46 @@ const ITEM_COLUMNS = `
   items.kind, items.family_code, items.family_label, items.created_at, items.updated_at
 `;
 
+/**
+ * Un emplacement est soit une étagère de rayonnage, soit une zone.
+ * `COALESCE` ramène les deux cas au rayonnage/zone porteur.
+ */
 const LOCATION_QUERY = `
   SELECT item_locations.item_id,
-         slots.id   AS slot_id,
-         slots.shelf_index,
-         slots.slot_index,
-         racks.id   AS rack_id,
-         racks.code AS rack_code,
-         racks.label AS rack_label
+         item_locations.shelf_id,
+         item_locations.zone_id,
+         shelves.shelf_index,
+         racks.id    AS rack_id,
+         racks.code  AS rack_code,
+         racks.kind  AS rack_kind,
+         racks.label AS rack_label,
+         racks.aisle AS rack_aisle
     FROM item_locations
-    JOIN slots ON slots.id = item_locations.slot_id
-    JOIN racks ON racks.id = slots.rack_id
+    LEFT JOIN shelves ON shelves.id = item_locations.shelf_id
+    LEFT JOIN racks ON racks.id = COALESCE(shelves.rack_id, item_locations.zone_id)
    WHERE item_locations.item_id IN (SELECT value FROM json_each(?))
-   ORDER BY racks.code, slots.shelf_index, slots.slot_index
+   ORDER BY racks.kind, racks.code, shelves.shelf_index
 `;
 
 /** Emplacement enrichi de ses codes calculés. */
 export function decorateLocation(row) {
+  const isShelf = row.shelf_id !== null && row.shelf_id !== undefined;
+  const code = isShelf
+    ? formatShelfCode(row.rack_code, row.shelf_index)
+    : formatZoneCode(row.rack_code);
+
   return {
-    slot_id: row.slot_id,
+    kind: isShelf ? 'shelf' : 'zone',
+    shelf_id: isShelf ? row.shelf_id : null,
+    zone_id: isShelf ? null : row.rack_id,
     rack_id: row.rack_id,
     rack_code: row.rack_code,
+    rack_kind: row.rack_kind,
     rack_label: row.rack_label,
-    shelf_index: row.shelf_index,
-    slot_index: row.slot_index,
-    short_code: formatSlotShortCode(row.shelf_index, row.slot_index),
-    code: formatLocationCode(row.rack_code, row.shelf_index, row.slot_index),
+    rack_aisle: row.rack_aisle ?? '',
+    shelf_index: isShelf ? row.shelf_index : null,
+    short_code: isShelf ? formatShelfShortCode(row.shelf_index) : code,
+    code,
   };
 }
 
@@ -66,9 +80,8 @@ export function listItems(db, { search = null, limit = null } = {}) {
   const params = [];
 
   if (search) {
-    sql += ' WHERE items.reference LIKE ?';
+    sql += " WHERE items.reference LIKE ? ESCAPE '\\'";
     params.push(`${escapeLike(search)}%`);
-    sql += " ESCAPE '\\'";
   }
   sql += ' ORDER BY items.reference';
   if (limit) {
@@ -84,116 +97,142 @@ export function escapeLike(value) {
   return String(value).replace(/[\\%_]/g, (char) => `\\${char}`);
 }
 
-/** Case avec son rayonnage et son code complet, ou 404. */
-export function findSlot(db, slotId) {
+/** Étagère avec son rayonnage et son code complet, ou 404. */
+export function findShelf(db, shelfId) {
   const row = db
     .prepare(
-      `SELECT slots.id AS slot_id, slots.shelf_index, slots.slot_index,
-              racks.id AS rack_id, racks.code AS rack_code, racks.label AS rack_label
-         FROM slots JOIN racks ON racks.id = slots.rack_id
-        WHERE slots.id = ?`,
+      `SELECT shelves.id AS shelf_id, NULL AS zone_id, shelves.shelf_index,
+              racks.id AS rack_id, racks.code AS rack_code, racks.kind AS rack_kind,
+              racks.label AS rack_label, racks.aisle AS rack_aisle
+         FROM shelves JOIN racks ON racks.id = shelves.rack_id
+        WHERE shelves.id = ?`,
     )
-    .get(slotId);
-  if (!row) throw notFound('Emplacement introuvable.');
+    .get(shelfId);
+  if (!row) throw notFound('Étagère introuvable.');
   return decorateLocation(row);
 }
 
-/** Cases d'un rayonnage, avec les articles qu'elles contiennent. */
-export function listRackSlots(db, rackId) {
+/** Zone avec son code, ou 404 si l'identifiant ne désigne pas une zone. */
+export function findZone(db, zoneId) {
+  const row = db
+    .prepare(
+      `SELECT NULL AS shelf_id, racks.id AS zone_id, NULL AS shelf_index,
+              racks.id AS rack_id, racks.code AS rack_code, racks.kind AS rack_kind,
+              racks.label AS rack_label, racks.aisle AS rack_aisle
+         FROM racks WHERE racks.id = ? AND racks.kind = 'zone'`,
+    )
+    .get(zoneId);
+  if (!row) throw notFound('Zone introuvable.');
+  return decorateLocation(row);
+}
+
+const SLOT_ITEM_COLUMNS = `
+  items.id AS item_id, items.reference, items.reference_display,
+  items.designation, items.kind, items.family_code, items.family_label
+`;
+
+/** Étagères d'un rayonnage, de la plus haute (E1) à la plus basse, avec leurs articles. */
+export function listRackShelves(db, rackId) {
   const rack = db.prepare('SELECT * FROM racks WHERE id = ?').get(rackId);
   if (!rack) throw notFound('Rayonnage introuvable.');
 
   const rows = db
     .prepare(
-      `SELECT slots.id, slots.shelf_index, slots.slot_index,
-              items.id AS item_id, items.reference, items.reference_display,
-              items.designation, items.kind, items.family_code, items.family_label
-         FROM slots
-         LEFT JOIN item_locations ON item_locations.slot_id = slots.id
+      `SELECT shelves.id, shelves.shelf_index, ${SLOT_ITEM_COLUMNS}
+         FROM shelves
+         LEFT JOIN item_locations ON item_locations.shelf_id = shelves.id
          LEFT JOIN items ON items.id = item_locations.item_id
-        WHERE slots.rack_id = ?
-        ORDER BY slots.shelf_index, slots.slot_index, items.reference`,
+        WHERE shelves.rack_id = ?
+        ORDER BY shelves.shelf_index, items.reference`,
     )
     .all(rackId);
 
-  const slots = new Map();
+  const shelves = new Map();
   for (const row of rows) {
-    if (!slots.has(row.id)) {
-      slots.set(row.id, {
+    if (!shelves.has(row.id)) {
+      shelves.set(row.id, {
         id: row.id,
         rack_id: rack.id,
         rack_code: rack.code,
         shelf_index: row.shelf_index,
-        slot_index: row.slot_index,
-        short_code: formatSlotShortCode(row.shelf_index, row.slot_index),
-        code: formatLocationCode(rack.code, row.shelf_index, row.slot_index),
+        short_code: formatShelfShortCode(row.shelf_index),
+        code: formatShelfCode(rack.code, row.shelf_index),
         items: [],
       });
     }
-    if (row.item_id) {
-      slots.get(row.id).items.push({
-        id: row.item_id,
-        reference: row.reference,
-        reference_display: row.reference_display,
-        designation: row.designation,
-        kind: row.kind,
-        family_code: row.family_code,
-        family_label: row.family_label,
-      });
-    }
+    if (row.item_id) shelves.get(row.id).items.push(toShelfItem(row));
   }
-  return [...slots.values()];
+  return [...shelves.values()];
 }
 
-/** (Re)génère les cases d'un rayonnage sans toucher à celles déjà occupées. */
-export function syncRackSlots(db, rack) {
+/** Articles posés directement sur une zone. */
+export function listZoneItems(db, zoneId) {
+  return db
+    .prepare(
+      `SELECT ${SLOT_ITEM_COLUMNS}
+         FROM item_locations
+         JOIN items ON items.id = item_locations.item_id
+        WHERE item_locations.zone_id = ?
+        ORDER BY items.reference`,
+    )
+    .all(zoneId)
+    .map(toShelfItem);
+}
+
+function toShelfItem(row) {
+  return {
+    id: row.item_id,
+    reference: row.reference,
+    reference_display: row.reference_display,
+    designation: row.designation,
+    kind: row.kind,
+    family_code: row.family_code,
+    family_label: row.family_label,
+  };
+}
+
+/** (Re)génère les étagères d'un rayonnage sans toucher à celles déjà occupées. */
+export function syncRackShelves(db, rack) {
   const existing = db
-    .prepare('SELECT id, shelf_index, slot_index FROM slots WHERE rack_id = ?')
+    .prepare('SELECT id, shelf_index FROM shelves WHERE rack_id = ?')
     .all(rack.id);
 
-  const obsolete = existing.filter(
-    (slot) => slot.shelf_index > rack.shelves_count || slot.slot_index > rack.slots_per_shelf,
-  );
+  const obsolete = existing.filter((shelf) => shelf.shelf_index > rack.shelves_count);
 
   if (obsolete.length > 0) {
-    const occupied = obsolete.filter((slot) => slotItemCount(db, slot.id) > 0);
+    const occupied = obsolete.filter((shelf) => shelfItemCount(db, shelf.id) > 0);
     if (occupied.length > 0) {
-      const codes = occupied.map((slot) =>
-        formatLocationCode(rack.code, slot.shelf_index, slot.slot_index),
-      );
+      const codes = occupied.map((shelf) => formatShelfCode(rack.code, shelf.shelf_index));
       throw conflict(
-        `Impossible de réduire ce rayonnage : ${codes.length} case(s) encore occupée(s) — ${codes.join(', ')}. Déplacez d’abord ces articles.`,
+        `Impossible de réduire ce rayonnage : ${codes.length} étagère(s) encore occupée(s) — ${codes.join(', ')}. Déplacez d’abord ces articles.`,
         { codes },
       );
     }
-    const remove = db.prepare('DELETE FROM slots WHERE id = ?');
-    for (const slot of obsolete) remove.run(slot.id);
+    const remove = db.prepare('DELETE FROM shelves WHERE id = ?');
+    for (const shelf of obsolete) remove.run(shelf.id);
   }
 
-  const known = new Set(existing.map((slot) => `${slot.shelf_index}:${slot.slot_index}`));
-  const insert = db.prepare(
-    'INSERT INTO slots (rack_id, shelf_index, slot_index) VALUES (?, ?, ?)',
-  );
-  for (let shelf = 1; shelf <= rack.shelves_count; shelf += 1) {
-    for (let slot = 1; slot <= rack.slots_per_shelf; slot += 1) {
-      if (!known.has(`${shelf}:${slot}`)) insert.run(rack.id, shelf, slot);
-    }
+  const known = new Set(existing.map((shelf) => shelf.shelf_index));
+  const insert = db.prepare('INSERT INTO shelves (rack_id, shelf_index) VALUES (?, ?)');
+  for (let index = 1; index <= rack.shelves_count; index += 1) {
+    if (!known.has(index)) insert.run(rack.id, index);
   }
 }
 
-export function slotItemCount(db, slotId) {
+export function shelfItemCount(db, shelfId) {
   return db
-    .prepare('SELECT COUNT(*) AS total FROM item_locations WHERE slot_id = ?')
-    .get(slotId).total;
+    .prepare('SELECT COUNT(*) AS total FROM item_locations WHERE shelf_id = ?')
+    .get(shelfId).total;
 }
 
+/** Articles portés par un rayonnage (via ses étagères) ou par une zone. */
 export function rackItemCount(db, rackId) {
   return db
     .prepare(
       `SELECT COUNT(*) AS total
          FROM item_locations
-         JOIN slots ON slots.id = item_locations.slot_id
-        WHERE slots.rack_id = ?`,
+         LEFT JOIN shelves ON shelves.id = item_locations.shelf_id
+        WHERE COALESCE(shelves.rack_id, item_locations.zone_id) = ?`,
     )
     .get(rackId).total;
 }
@@ -202,12 +241,12 @@ export function rackItemCount(db, rackId) {
  * Journalise une action sur un article. Les codes d'emplacement sont figés en
  * clair pour que l'historique reste lisible après suppression.
  */
-export function recordMovement(db, { item, user, action, fromSlot = null, toSlot = null }) {
+export function recordMovement(db, { item, user, action, from = null, to = null }) {
   db.prepare(
     `INSERT INTO movements (
        item_id, item_reference, item_designation, user_id, user_first_name,
-       action, from_slot_id, from_slot_code, to_slot_id, to_slot_code, created_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       action, from_code, to_code, created_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     item.id ?? null,
     item.reference,
@@ -215,10 +254,8 @@ export function recordMovement(db, { item, user, action, fromSlot = null, toSlot
     user.id,
     user.first_name,
     action,
-    fromSlot?.slot_id ?? null,
-    fromSlot?.code ?? null,
-    toSlot?.slot_id ?? null,
-    toSlot?.code ?? null,
+    from?.code ?? null,
+    to?.code ?? null,
     new Date().toISOString(),
   );
 }

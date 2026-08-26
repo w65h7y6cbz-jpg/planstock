@@ -6,9 +6,10 @@ import type {
   Movement,
   Rack,
   RackDetail,
+  RackKind,
   SearchResult,
   Settings,
-  SlotContent,
+  Shelf,
   User,
 } from './types';
 
@@ -56,14 +57,18 @@ export interface ItemPayload {
   kind?: ItemKind;
   family_code?: string | null;
   family_label?: string | null;
-  slot_id?: number | null;
+  /** Étagère de destination — exclusif avec `zone_id`. */
+  shelf_id?: number | null;
+  /** Zone de destination — exclusif avec `shelf_id`. */
+  zone_id?: number | null;
 }
 
 export interface RackPayload {
   code?: number;
+  kind?: RackKind;
   label?: string;
+  aisle?: string;
   shelves_count?: number;
-  slots_per_shelf?: number;
   x?: number;
   y?: number;
   width?: number;
@@ -86,7 +91,7 @@ export const api = {
   racks: {
     list: () => request<Rack[]>('/racks'),
     get: (id: number) => request<RackDetail>(`/racks/${id}`),
-    slots: (id: number) => request<SlotContent[]>(`/racks/${id}/slots`),
+    shelves: (id: number) => request<Shelf[]>(`/racks/${id}/shelves`),
     create: (payload: RackPayload) =>
       request<RackDetail>('/racks', { method: 'POST', ...json(payload) }),
     update: (id: number, payload: RackPayload) =>
@@ -104,10 +109,10 @@ export const api = {
       request<Item>('/items', { method: 'POST', ...json({ user_id: userId, ...payload }) }),
     update: (userId: number, id: number, payload: Partial<ItemPayload>) =>
       request<Item>(`/items/${id}`, { method: 'PATCH', ...json({ user_id: userId, ...payload }) }),
-    move: (userId: number, id: number, slotId: number) =>
+    move: (userId: number, id: number, target: { shelf_id?: number; zone_id?: number }) =>
       request<Item>(`/items/${id}/location`, {
         method: 'PUT',
-        ...json({ user_id: userId, slot_id: slotId }),
+        ...json({ user_id: userId, ...target }),
       }),
     remove: (userId: number, id: number) =>
       request<{ deleted: boolean }>(`/items/${id}`, {
@@ -142,7 +147,7 @@ export const api = {
   demo: {
     status: () => request<{ available: boolean }>('/demo'),
     seed: (userId: number) =>
-      request<{ racks: number; items: number }>('/demo', {
+      request<{ racks: number; zones: number; items: number }>('/demo', {
         method: 'POST',
         ...json({ user_id: userId }),
       }),

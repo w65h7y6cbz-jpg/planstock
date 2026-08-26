@@ -14,10 +14,18 @@ interface PlanEditorProps {
   onCreate: (payload: RackPayload) => Promise<void>;
   onUpdate: (id: number, payload: RackPayload) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  onPlanShapeChange: (height: number) => Promise<void>;
 }
 
-const DEFAULT_SHELVES = 4;
-const DEFAULT_SLOTS = 5;
+const DEFAULT_SHELVES = 5;
+
+/** Proportions du local : la largeur reste la référence, la hauteur varie. */
+const SHAPES = [
+  { value: 100, label: 'Carré' },
+  { value: 75, label: 'Large' },
+  { value: 55, label: 'Très large' },
+  { value: 40, label: 'Tout en longueur' },
+];
 
 export function PlanEditor({
   racks,
@@ -28,32 +36,37 @@ export function PlanEditor({
   onCreate,
   onUpdate,
   onDelete,
+  onPlanShapeChange,
 }: PlanEditorProps) {
   const [selectedRackId, setSelectedRackId] = useState<number | null>(null);
   const [label, setLabel] = useState('');
+  const [aisle, setAisle] = useState('');
   const [shelves, setShelves] = useState(String(DEFAULT_SHELVES));
-  const [slots, setSlots] = useState(String(DEFAULT_SLOTS));
   const [busy, setBusy] = useState(false);
 
-  async function submitNewRack(event: React.FormEvent) {
-    event.preventDefault();
+  async function submitNew(kind: 'rack' | 'zone') {
     if (!canEdit || busy) return;
     setBusy(true);
     await onCreate({
+      kind,
       label: label.trim(),
-      shelves_count: Number(shelves) || DEFAULT_SHELVES,
-      slots_per_shelf: Number(slots) || DEFAULT_SLOTS,
+      aisle: kind === 'rack' ? aisle.trim() : '',
+      shelves_count: kind === 'rack' ? Number(shelves) || DEFAULT_SHELVES : 0,
     });
     setLabel('');
+    setAisle('');
     setBusy(false);
   }
 
   async function confirmDelete(rack: Rack) {
     if (!canEdit) return;
+    const what = rack.is_zone ? 'la zone' : 'le rayonnage';
     const message =
       rack.items_count > 0
         ? `${rack.rack_code} contient ${rack.items_count} article(s). La suppression sera refusée tant qu’ils n’auront pas été déplacés. Continuer ?`
-        : `Supprimer le rayonnage ${rack.rack_code} et ses ${rack.slots_total} cases ?`;
+        : `Supprimer ${what} ${rack.rack_code}${
+            rack.is_zone ? '' : ` et ses ${rack.shelves_count} étagères`
+          } ?`;
     if (window.confirm(message)) await onDelete(rack.id);
   }
 
@@ -61,6 +74,8 @@ export function PlanEditor({
     if (!canEdit) return;
     void onUpdate(rackId, geometry);
   }
+
+  const zones = racks.filter((rack) => rack.is_zone).length;
 
   return (
     <div className={styles.editor}>
@@ -72,20 +87,22 @@ export function PlanEditor({
         ) : null}
         {error ? <p className={styles.error}>{error}</p> : null}
 
-        <h3 className={styles.sectionTitle}>Rayonnages ({racks.length})</h3>
+        <h3 className={styles.sectionTitle}>
+          Emplacements ({racks.length - zones} rayonnage(s), {zones} zone(s))
+        </h3>
 
         {racks.length === 0 ? (
           <p className={styles.empty}>
-            Aucun rayonnage. Créez le premier ci-dessous : ses cases seront générées
-            automatiquement.
+            Aucun emplacement. Créez le premier ci-dessous : les étagères d’un rayonnage sont
+            générées automatiquement.
           </p>
         ) : (
           <ul className={styles.list}>
             {racks.map((rack) => (
               <li
                 key={rack.id}
-                className={`${styles.row} ${
-                  selectedRackId === rack.id ? styles.rowSelected : ''
+                className={`${styles.row} ${selectedRackId === rack.id ? styles.rowSelected : ''} ${
+                  rack.is_zone ? styles.rowZone : ''
                 }`}
                 onPointerDown={() => setSelectedRackId(rack.id)}
               >
@@ -95,9 +112,9 @@ export function PlanEditor({
                   className={styles.labelInput}
                   type="text"
                   defaultValue={rack.label}
-                  placeholder="Libellé (ex. Rayon imprimantes)"
+                  placeholder={rack.is_zone ? 'Libellé (ex. Pile ProDesk)' : 'Libellé (ex. Rayon imprimantes)'}
                   disabled={!canEdit}
-                  aria-label={`Libellé du rayonnage ${rack.rack_code}`}
+                  aria-label={`Libellé de ${rack.rack_code}`}
                   onBlur={(event) => {
                     const next = event.target.value.trim();
                     if (next !== rack.label) void onUpdate(rack.id, { label: next });
@@ -111,7 +128,7 @@ export function PlanEditor({
                     className={styles.iconButton}
                     disabled={!canEdit}
                     title={rack.rotation === 90 ? 'Remettre à l’horizontale' : 'Pivoter à 90°'}
-                    aria-label={`Pivoter le rayonnage ${rack.rack_code}`}
+                    aria-label={`Pivoter ${rack.rack_code}`}
                     onClick={() =>
                       void onUpdate(rack.id, { rotation: rack.rotation === 90 ? 0 : 90 })
                     }
@@ -122,8 +139,8 @@ export function PlanEditor({
                     type="button"
                     className={`${styles.iconButton} ${styles.danger}`}
                     disabled={!canEdit}
-                    title="Supprimer ce rayonnage"
-                    aria-label={`Supprimer le rayonnage ${rack.rack_code}`}
+                    title="Supprimer cet emplacement"
+                    aria-label={`Supprimer ${rack.rack_code}`}
                     onClick={() => void confirmDelete(rack)}
                   >
                     ✕
@@ -131,101 +148,136 @@ export function PlanEditor({
                 </span>
 
                 <div className={styles.dimensions}>
-                  <label className={styles.dimension}>
-                    Étagères
-                    <input
-                      className={styles.number}
-                      type="number"
-                      min={1}
-                      max={20}
-                      defaultValue={rack.shelves_count}
-                      disabled={!canEdit}
-                      onBlur={(event) => {
-                        const next = Number(event.target.value);
-                        if (next && next !== rack.shelves_count) {
-                          void onUpdate(rack.id, { shelves_count: next });
-                        }
-                      }}
-                    />
-                  </label>
-                  <label className={styles.dimension}>
-                    Cases
-                    <input
-                      className={styles.number}
-                      type="number"
-                      min={1}
-                      max={20}
-                      defaultValue={rack.slots_per_shelf}
-                      disabled={!canEdit}
-                      onBlur={(event) => {
-                        const next = Number(event.target.value);
-                        if (next && next !== rack.slots_per_shelf) {
-                          void onUpdate(rack.id, { slots_per_shelf: next });
-                        }
-                      }}
-                    />
-                  </label>
-                  <span className={styles.total}>
-                    {rack.slots_total} cases · {rack.items_count} article(s)
-                  </span>
+                  {rack.is_zone ? (
+                    <span className={styles.zoneNote}>zone — pas d’étagère</span>
+                  ) : (
+                    <>
+                      <label className={styles.dimension}>
+                        Étagères
+                        <input
+                          className={styles.number}
+                          type="number"
+                          min={1}
+                          max={30}
+                          defaultValue={rack.shelves_count}
+                          disabled={!canEdit}
+                          onBlur={(event) => {
+                            const next = Number(event.target.value);
+                            if (next && next !== rack.shelves_count) {
+                              void onUpdate(rack.id, { shelves_count: next });
+                            }
+                          }}
+                        />
+                      </label>
+                      <label className={styles.dimension}>
+                        Allée
+                        <input
+                          className={styles.aisleInput}
+                          type="text"
+                          defaultValue={rack.aisle}
+                          placeholder="Allée A"
+                          disabled={!canEdit}
+                          aria-label={`Allée de ${rack.rack_code}`}
+                          onBlur={(event) => {
+                            const next = event.target.value.trim();
+                            if (next !== rack.aisle) void onUpdate(rack.id, { aisle: next });
+                          }}
+                          onKeyDown={(event) =>
+                            event.key === 'Enter' && event.currentTarget.blur()
+                          }
+                        />
+                      </label>
+                    </>
+                  )}
+                  <span className={styles.total}>{rack.items_count} article(s)</span>
                 </div>
               </li>
             ))}
           </ul>
         )}
 
-        <form className={styles.form} onSubmit={submitNewRack}>
-          <h3 className={styles.sectionTitle}>Ajouter un rayonnage</h3>
+        <div className={styles.form}>
+          <h3 className={styles.sectionTitle}>Ajouter un emplacement</h3>
           <label className={styles.field}>
             Libellé
             <input
               type="text"
               value={label}
-              placeholder="Rayon imprimantes"
+              placeholder="Rayon imprimantes / Pile ProDesk"
               disabled={!canEdit}
               onChange={(event) => setLabel(event.target.value)}
             />
           </label>
           <div className={styles.formRow}>
             <label className={styles.field}>
-              Étagères
+              Étagères (rayonnage)
               <input
                 type="number"
                 min={1}
-                max={20}
+                max={30}
                 value={shelves}
                 disabled={!canEdit}
                 onChange={(event) => setShelves(event.target.value)}
               />
             </label>
             <label className={styles.field}>
-              Cases par étagère
+              Allée (facultatif)
               <input
-                type="number"
-                min={1}
-                max={20}
-                value={slots}
+                type="text"
+                value={aisle}
+                placeholder="Allée A"
                 disabled={!canEdit}
-                onChange={(event) => setSlots(event.target.value)}
+                onChange={(event) => setAisle(event.target.value)}
               />
             </label>
           </div>
-          <button
-            type="submit"
-            className={`${styles.button} ${styles.buttonPrimary}`}
-            disabled={!canEdit || busy}
-          >
-            Ajouter le rayonnage
-          </button>
-        </form>
+          <div className={styles.formRow}>
+            <button
+              type="button"
+              className={`${styles.button} ${styles.buttonPrimary}`}
+              disabled={!canEdit || busy}
+              onClick={() => void submitNew('rack')}
+            >
+              Ajouter un rayonnage
+            </button>
+            <button
+              type="button"
+              className={styles.button}
+              disabled={!canEdit || busy}
+              onClick={() => void submitNew('zone')}
+            >
+              Ajouter une zone
+            </button>
+          </div>
+          <p className={styles.hint}>
+            Une zone (pile au sol, palette, cage, table, présentoir) n’a pas d’étagère : les
+            articles y sont posés directement.
+          </p>
+        </div>
       </div>
 
       <div className={styles.planSide}>
-        <p className={styles.hint}>
-          Glissez un rectangle pour le placer, la poignée bleue en bas à droite pour le
-          redimensionner. Au clavier : Tab pour sélectionner, flèches pour déplacer (Maj = pas
-          de 5 %).
-        </p>
+        <div className={styles.planHeader}>
+          <label className={styles.field}>
+            Proportions du local
+            <select
+              value={planHeight}
+              disabled={!canEdit || busy}
+              onChange={(event) => void onPlanShapeChange(Number(event.target.value))}
+            >
+              {SHAPES.map((shape) => (
+                <option key={shape.value} value={shape.value}>
+                  {shape.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className={styles.hint}>
+            Glissez un rectangle pour le placer — les bords se collent entre eux, pour les
+            rayonnages dos à dos. Poignée bleue pour redimensionner, molette pour zoomer, glisser
+            sur le fond pour se déplacer. Au clavier : Tab puis flèches (Maj = pas de 5 %).
+          </p>
+        </div>
         <TopView
           racks={racks}
           planWidth={planWidth}

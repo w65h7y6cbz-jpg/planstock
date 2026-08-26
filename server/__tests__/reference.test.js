@@ -5,9 +5,10 @@ import {
   normalizeReferenceStrict,
 } from '../lib/reference.js';
 import {
-  formatLocationCode,
   formatRackCode,
-  formatSlotShortCode,
+  formatShelfCode,
+  formatShelfShortCode,
+  formatZoneCode,
   parseLocationCode,
 } from '../lib/locationCode.js';
 
@@ -40,18 +41,26 @@ describe('normalizeReference', () => {
 });
 
 describe('codes d’emplacement', () => {
-  it('formate le rayon sur deux chiffres, étagère et case sans zéro initial', () => {
+  it('formate une étagère de rayonnage', () => {
     expect(formatRackCode(3)).toBe('R03');
     expect(formatRackCode(12)).toBe('R12');
-    expect(formatSlotShortCode(2, 4)).toBe('E2-C4');
-    expect(formatLocationCode(3, 2, 4)).toBe('R03-E2-C4');
-    expect(formatLocationCode(1, 3, 2)).toBe('R01-E3-C2');
+    expect(formatShelfShortCode(2)).toBe('E2');
+    expect(formatShelfCode(3, 2)).toBe('R03-E2');
+    expect(formatShelfCode(1, 5)).toBe('R01-E5');
+  });
+
+  it('formate une zone', () => {
+    expect(formatZoneCode(1)).toBe('Z01');
+    expect(formatZoneCode(12)).toBe('Z12');
+    expect(formatRackCode(2, 'zone')).toBe('Z02');
   });
 
   it('relit un code d’emplacement', () => {
-    expect(parseLocationCode('R03-E2-C4')).toEqual({ rackCode: 3, shelfIndex: 2, slotIndex: 4 });
-    expect(parseLocationCode('r03-e2-c4')).toEqual({ rackCode: 3, shelfIndex: 2, slotIndex: 4 });
-    expect(parseLocationCode('R3-E2')).toBeNull();
+    expect(parseLocationCode('R03-E2')).toEqual({ kind: 'rack', rackCode: 3, shelfIndex: 2 });
+    expect(parseLocationCode('r03-e2')).toEqual({ kind: 'rack', rackCode: 3, shelfIndex: 2 });
+    expect(parseLocationCode('Z02')).toEqual({ kind: 'zone', rackCode: 2, shelfIndex: null });
+    // L'ancien format avec case n'est plus valide.
+    expect(parseLocationCode('R03-E2-C4')).toBeNull();
     expect(parseLocationCode('n’importe quoi')).toBeNull();
   });
 });

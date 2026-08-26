@@ -12,8 +12,13 @@
 .svg {
   width: 100%;
   height: 100%;
-  overflow: visible;
+  overflow: hidden;
   touch-action: none;
+  cursor: grab;
+}
+
+.svgPanning {
+  cursor: grabbing;
 }
 
 .room {
@@ -85,6 +90,24 @@
   dominant-baseline: middle;
 }
 
+.rackAisle {
+  fill: var(--text-faint);
+  font-size: 1.8px;
+  letter-spacing: 0.05px;
+  text-anchor: end;
+  dominant-baseline: alphabetic;
+}
+
+/* Une zone (pile au sol, palette, cage, table) : contour tireté, pas d'étagère. */
+.zone .rackBody {
+  fill: var(--bg-sunken);
+  stroke-dasharray: 1.6 1.1;
+}
+
+.zone .rackCode {
+  fill: var(--text-muted);
+}
+
 /* Rayonnage dont tous les articles de la liste sont cochés. */
 .rackDone .rackBody {
   fill: var(--success-soft);
@@ -124,6 +147,24 @@
   width: 100%;
   text-align: center;
   color: var(--text-faint);
+}
+
+.resetView {
+  position: absolute;
+  z-index: 4;
+  top: var(--space-3);
+  right: var(--space-3);
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  font-size: 13px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.resetView:hover {
+  border-color: var(--accent-border);
 }
 
 .tooltip {

@@ -6,7 +6,7 @@ import {
   pendingPhysicalCount,
   rackHighlights,
   removePickEntry,
-  slotStates,
+  locationStates,
   splitPickList,
   togglePickEntry,
   type PickEntry,
@@ -15,16 +15,37 @@ import type { Item, ItemKind, Location } from '../../types';
 
 let nextId = 1;
 
-function location(rackId: number, rackCode: number, shelf: number, slot: number): Location {
+/** Étagère `R{rackCode}-E{shelf}` d'un rayonnage. */
+function shelf(rackId: number, rackCode: number, shelfIndex: number): Location {
   return {
-    slot_id: rackId * 100 + shelf * 10 + slot,
+    kind: 'shelf',
+    shelf_id: rackId * 100 + shelfIndex,
+    zone_id: null,
     rack_id: rackId,
     rack_code: rackCode,
+    rack_kind: 'rack',
     rack_label: `Rayon ${rackCode}`,
-    shelf_index: shelf,
-    slot_index: slot,
-    short_code: `E${shelf}-C${slot}`,
-    code: `R${String(rackCode).padStart(2, '0')}-E${shelf}-C${slot}`,
+    rack_aisle: '',
+    shelf_index: shelfIndex,
+    short_code: `E${shelfIndex}`,
+    code: `R${String(rackCode).padStart(2, '0')}-E${shelfIndex}`,
+  };
+}
+
+/** Zone `Z{zoneCode}` (pile au sol, palette…). */
+function zone(rackId: number, zoneCode: number, label = `Zone ${zoneCode}`): Location {
+  return {
+    kind: 'zone',
+    shelf_id: null,
+    zone_id: rackId,
+    rack_id: rackId,
+    rack_code: zoneCode,
+    rack_kind: 'zone',
+    rack_label: label,
+    rack_aisle: '',
+    shelf_index: null,
+    short_code: `Z${String(zoneCode).padStart(2, '0')}`,
+    code: `Z${String(zoneCode).padStart(2, '0')}`,
   };
 }
 
@@ -48,7 +69,7 @@ const entriesOf = (...items: Item[]): PickEntry[] =>
 
 describe('ajout à la liste de préparation', () => {
   it('ajoute un article physique non coché', () => {
-    const arb = item('ARB123', 'physical', [location(1, 3, 2, 4)]);
+    const arb = item('ARB123', 'physical', [shelf(1, 3, 2)]);
     const result = addToPickList([], arb);
 
     expect(result.added).toBe(true);
@@ -65,7 +86,7 @@ describe('ajout à la liste de préparation', () => {
   });
 
   it('ne duplique pas une référence déjà présente et signale la ligne existante', () => {
-    const arb = item('ARB123', 'physical', [location(1, 3, 2, 4)]);
+    const arb = item('ARB123', 'physical', [shelf(1, 3, 2)]);
     const premier = addToPickList([], arb);
     const second = addToPickList(premier.entries, arb);
 
@@ -76,8 +97,8 @@ describe('ajout à la liste de préparation', () => {
   });
 
   it('ajoute plusieurs références en un seul appel en ignorant les doublons', () => {
-    const a = item('AAA111', 'physical', [location(1, 1, 1, 1)]);
-    const b = item('BBB222', 'physical', [location(1, 1, 1, 2)]);
+    const a = item('AAA111', 'physical', [shelf(1, 1, 1)]);
+    const b = item('BBB222', 'physical', [shelf(1, 1, 2)]);
     const result = addManyToPickList(entriesOf(a), [a, b]);
 
     expect(result.added).toBe(1);
@@ -88,7 +109,7 @@ describe('ajout à la liste de préparation', () => {
 
 describe('cases à cocher et retrait', () => {
   it('coche, décoche et retire une ligne', () => {
-    const arb = item('ARB123', 'physical', [location(1, 3, 2, 4)]);
+    const arb = item('ARB123', 'physical', [shelf(1, 3, 2)]);
     const entries = entriesOf(arb);
 
     expect(togglePickEntry(entries, arb.id)[0].checked).toBe(true);
@@ -97,8 +118,8 @@ describe('cases à cocher et retrait', () => {
   });
 
   it('compte les articles physiques restant à prélever', () => {
-    const a = item('AAA111', 'physical', [location(1, 1, 1, 1)]);
-    const b = item('BBB222', 'physical', [location(1, 1, 1, 2)]);
+    const a = item('AAA111', 'physical', [shelf(1, 1, 1)]);
+    const b = item('BBB222', 'physical', [shelf(1, 1, 2)]);
     const service = item('DEPITUC', 'service');
     const entries = entriesOf(a, b, service);
 
@@ -110,7 +131,7 @@ describe('cases à cocher et retrait', () => {
 
 describe('séparation des articles sans stock physique', () => {
   it('range services et autres sites à part', () => {
-    const physique = item('B39VLAT', 'physical', [location(1, 1, 3, 2)]);
+    const physique = item('B39VLAT', 'physical', [shelf(1, 1, 3)]);
     const service = item('DEPITUC', 'service');
     const autreSite = item('DUCOS01', 'other_site');
     const { physical, withoutStock } = splitPickList(entriesOf(physique, service, autreSite));
@@ -119,38 +140,47 @@ describe('séparation des articles sans stock physique', () => {
     expect(withoutStock.map((entry) => entry.item.reference)).toEqual(['DEPITUC', 'DUCOS01']);
   });
 
-  it('n’allume aucune case pour un service', () => {
+  it('n’allume aucun emplacement pour un service', () => {
     const service = item('DEPITUC', 'service');
-    expect(slotStates(entriesOf(service)).size).toBe(0);
+    expect(locationStates(entriesOf(service)).size).toBe(0);
     expect(rackHighlights(entriesOf(service)).size).toBe(0);
   });
 });
 
 describe('éclairage du plan', () => {
-  it('allume la case d’un article à prélever, la valide une fois cochée', () => {
-    const emplacement = location(1, 3, 2, 4);
+  it('allume l’étagère d’un article à prélever, la valide une fois cochée', () => {
+    const emplacement = shelf(1, 3, 2);
     const arb = item('ARB123', 'physical', [emplacement]);
     const entries = entriesOf(arb);
 
-    expect(slotStates(entries).get(emplacement.slot_id)).toBe('lit');
-    expect(slotStates(togglePickEntry(entries, arb.id)).get(emplacement.slot_id)).toBe('done');
+    expect(locationStates(entries).get(emplacement.code)).toBe('lit');
+    expect(locationStates(togglePickEntry(entries, arb.id)).get(emplacement.code)).toBe('done');
   });
 
-  it('garde une case allumée tant qu’un de ses articles reste à prendre', () => {
-    const emplacement = location(1, 3, 2, 4);
+  it('garde une étagère allumée tant qu’un de ses articles reste à prendre', () => {
+    const emplacement = shelf(1, 3, 2);
     const a = item('AAA111', 'physical', [emplacement]);
     const b = item('BBB222', 'physical', [emplacement]);
     const entries = togglePickEntry(entriesOf(a, b), a.id);
 
     expect(entries[0].checked).toBe(true);
-    expect(slotStates(entries).get(emplacement.slot_id)).toBe('lit');
-    expect(slotStates(checkAll(entries)).get(emplacement.slot_id)).toBe('done');
+    expect(locationStates(entries).get(emplacement.code)).toBe('lit');
+    expect(locationStates(checkAll(entries)).get(emplacement.code)).toBe('done');
+  });
+
+  it('allume une zone comme un rayonnage', () => {
+    const surZone = item('B39VLAT', 'physical', [zone(7, 2, 'Pile ProDesk')]);
+    const entries = entriesOf(surZone);
+
+    expect(locationStates(entries).get('Z02')).toBe('lit');
+    expect(rackHighlights(entries).get(7)).toEqual({ pending: 1, done: 0 });
+    expect(locationStates(togglePickEntry(entries, surZone.id)).get('Z02')).toBe('done');
   });
 
   it('compte les articles par rayonnage pour le badge de la vue de dessus', () => {
-    const a = item('AAA111', 'physical', [location(1, 3, 2, 4)]);
-    const b = item('BBB222', 'physical', [location(1, 3, 1, 1)]);
-    const c = item('CCC333', 'physical', [location(2, 5, 1, 2)]);
+    const a = item('AAA111', 'physical', [shelf(1, 3, 2)]);
+    const b = item('BBB222', 'physical', [shelf(1, 3, 1)]);
+    const c = item('CCC333', 'physical', [shelf(2, 5, 1)]);
     const entries = togglePickEntry(entriesOf(a, b, c), b.id);
 
     const highlights = rackHighlights(entries);

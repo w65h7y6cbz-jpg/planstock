@@ -111,6 +111,10 @@ export function PickList({
                   onClick={() => onShowLocation(location)}
                 >
                   {location.code}
+                  {/* Une zone est nommée : « Z02 — Pile ProDesk » est plus parlant. */}
+                  {location.kind === 'zone' && location.rack_label ? (
+                    <span className={styles.locationLabel}>— {location.rack_label}</span>
+                  ) : null}
                   {extra > 0 ? ` +${extra}` : ''}
                 </button>
               ) : (

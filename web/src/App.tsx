@@ -3,7 +3,7 @@ import { ApiError, api, type ItemPayload } from './api';
 import { Modal } from './components/Modal';
 import { PickList } from './components/PickList';
 import { PlanPanel, type PlanFocus } from './components/PlanPanel';
-import type { SlotSelection } from './components/RackView';
+import type { LocationSelection, MoveTarget } from './components/RackView';
 import { SearchBox } from './components/SearchBox';
 import { Toasts } from './components/Toasts';
 import { TopBar } from './components/TopBar';
@@ -19,7 +19,7 @@ import { usePickList } from './hooks/usePickList';
 import { useRacks } from './hooks/useRacks';
 import { useTheme } from './hooks/useTheme';
 import { useToasts } from './hooks/useToasts';
-import type { Item, Location, Settings, SlotContent, SlotItem } from './types';
+import type { Item, Location, Rack, Settings, Shelf, ShelfItem } from './types';
 import styles from './App.module.css';
 
 type FormState =
@@ -60,9 +60,8 @@ export function App() {
   const [planFocus, setPlanFocus] = useState<PlanFocus | null>(null);
   const [form, setForm] = useState<FormState>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [slotPicking, setSlotPicking] = useState(false);
-  const [pickedSlot, setPickedSlot] = useState<SlotContent | null>(null);
-  const [pendingMove, setPendingMove] = useState<{ item: SlotItem; rackId: number } | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<{ shelf?: Shelf; zone?: Rack } | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [inventoryOpen, setInventoryOpen] = useState(false);
 
@@ -95,14 +94,18 @@ export function App() {
     if (!inventoryOpen) searchRef.current?.focus();
   }, [inventoryOpen]);
 
-  const focusOnPlan = useCallback((rackId: number, slotId: number | null, force: boolean) => {
-    focusNonce.current += 1;
-    setPlanFocus({ rackId, slotId, force, nonce: focusNonce.current });
-  }, []);
-
   const focusOnLocation = useCallback(
-    (location: Location, force: boolean) => focusOnPlan(location.rack_id, location.slot_id, force),
-    [focusOnPlan],
+    (location: Location, force: boolean, reference: string | null = null) => {
+      focusNonce.current += 1;
+      setPlanFocus({
+        rackId: location.rack_id,
+        code: location.code,
+        reference,
+        force,
+        nonce: focusNonce.current,
+      });
+    },
+    [],
   );
 
   /** Après toute modification : plan, rayonnage ouvert et liste de prépa à jour. */
@@ -138,12 +141,40 @@ export function App() {
     }
   }, [pickList, racksState, reloadUsers]);
 
+  /**
+   * Changer la hauteur du plan changerait la position apparente des emplacements :
+   * on remet chacun à l'échelle pour qu'il garde sa place relative dans le local,
+   * au lieu de sortir du cadre.
+   */
+  const changePlanShape = useCallback(
+    async (nextHeight: number) => {
+      const currentHeight = Number(settings.plan_height) || 100;
+      if (nextHeight === currentHeight) return;
+      try {
+        const factor = nextHeight / currentHeight;
+        for (const rack of racksState.racks) {
+          const height = Math.max(3, Math.min(rack.height * factor, nextHeight));
+          const y = Math.max(0, Math.min(rack.y * factor, nextHeight - height));
+          await api.racks.update(rack.id, {
+            y: Math.round(y * 100) / 100,
+            height: Math.round(height * 100) / 100,
+          });
+        }
+        setSettings(await api.settings.update({ plan_height: String(nextHeight) }));
+        await racksState.reload();
+      } catch (cause) {
+        notify({ tone: 'danger', message: messageOf(cause, 'Modification impossible.') });
+      }
+    },
+    [settings, racksState, notify],
+  );
+
   /** Une référence trouvée rejoint la liste et allume son emplacement. */
   const pickItem = useCallback(
     (item: Item) => {
       pickList.add(item);
       const location = item.locations[0];
-      if (item.kind === 'physical' && location) focusOnLocation(location, false);
+      if (item.kind === 'physical' && location) focusOnLocation(location, false, item.reference);
     },
     [pickList, focusOnLocation],
   );
@@ -189,33 +220,39 @@ export function App() {
   function closeForm() {
     setForm(null);
     setFormError(null);
-    setSlotPicking(false);
-    setPickedSlot(null);
+    setPicking(false);
+    setPicked(null);
     searchRef.current?.focus();
   }
 
   /** Déplacement effectif d'un article, avec possibilité d'annuler. */
   const moveItem = useCallback(
-    async (item: SlotItem, slot: SlotContent) => {
+    async (item: ShelfItem, target: MoveTarget, code: string) => {
       if (!requireUser() || !currentUser) return;
       try {
         const before = await api.items.get(item.id);
         const from = before.locations[0] ?? null;
-        if (from?.slot_id === slot.id) return;
+        if (from?.code === code) return;
 
-        await api.items.move(currentUser.id, item.id, slot.id);
+        await api.items.move(currentUser.id, item.id, target);
         await refreshAfterMutation(item.id);
 
         notify({
           tone: 'success',
-          message: `${item.reference_display} : ${from?.code ?? '—'} → ${slot.code}`,
+          message: `${item.reference_display} : ${from?.code ?? '—'} → ${code}`,
           action: from
             ? {
                 label: 'Annuler',
                 run: () => {
                   void (async () => {
                     try {
-                      await api.items.move(currentUser.id, item.id, from.slot_id);
+                      await api.items.move(
+                        currentUser.id,
+                        item.id,
+                        from.kind === 'shelf'
+                          ? { shelf_id: from.shelf_id as number }
+                          : { zone_id: from.zone_id as number },
+                      );
                       await refreshAfterMutation(item.id);
                       notify({
                         tone: 'info',
@@ -237,7 +274,7 @@ export function App() {
   );
 
   const deleteItem = useCallback(
-    async (item: SlotItem) => {
+    async (item: ShelfItem) => {
       if (!requireUser() || !currentUser) return;
       if (!window.confirm(`Supprimer définitivement ${item.reference_display} du plan ?`)) return;
       try {
@@ -252,7 +289,7 @@ export function App() {
     [currentUser, requireUser, pickList, refreshAfterMutation, notify],
   );
 
-  const editItem = useCallback(async (item: SlotItem) => {
+  const editItem = useCallback(async (item: ShelfItem) => {
     try {
       setForm({ mode: 'edit', item: await api.items.get(item.id) });
       setFormError(null);
@@ -261,31 +298,13 @@ export function App() {
     }
   }, []);
 
-  /** Pastille lâchée sur un autre rayonnage : il s'ouvre pour choisir la case. */
-  const dropOnRack = useCallback(
-    (item: SlotItem, rackId: number) => {
-      if (!requireUser()) return;
-      setPendingMove({ item, rackId });
-      focusOnPlan(rackId, null, true);
-    },
-    [requireUser, focusOnPlan],
-  );
-
-  // Une seule mécanique de choix de case : déplacement en cours, ou formulaire ouvert.
-  const selection: SlotSelection | null = pendingMove
-    ? {
-        label: `Choisissez la case de destination pour ${pendingMove.item.reference_display}.`,
-        onSelect: (slot) => {
-          const move = pendingMove;
-          setPendingMove(null);
-          void moveItem(move.item, slot);
-        },
-        onCancel: () => setPendingMove(null),
-      }
-    : slotPicking && form
+  // Une seule mécanique de choix d'emplacement : le formulaire ouvert.
+  const selection: LocationSelection | null =
+    picking && form
       ? {
-          label: 'Cliquez la case où ranger cet article.',
-          onSelect: (slot) => setPickedSlot(slot),
+          label: 'Cliquez l’étagère ou la zone où ranger cet article.',
+          onSelectShelf: (shelf) => setPicked({ shelf }),
+          onSelectZone: (zone) => setPicked({ zone }),
         }
       : null;
 
@@ -349,8 +368,8 @@ export function App() {
                 item={form.mode === 'edit' ? form.item : null}
                 presetReference={form.mode === 'create' ? form.presetReference : ''}
                 racks={racksState.racks}
-                pickedSlot={pickedSlot}
-                onSlotPickingChange={setSlotPicking}
+                picked={picked}
+                onPickingChange={setPicking}
                 onSubmit={submitForm}
                 onCancel={closeForm}
                 error={formError}
@@ -366,7 +385,7 @@ export function App() {
                   onPick={pickItem}
                   onCreateRequest={(reference) => {
                     setFormError(null);
-                    setPickedSlot(null);
+                    setPicked(null);
                     // Les références du bon sont en majuscules : on pré-remplit ainsi,
                     // en gardant les séparateurs saisis (UK707E/L). Reste modifiable.
                     setForm({ mode: 'create', presetReference: reference.toUpperCase() });
@@ -398,15 +417,14 @@ export function App() {
               racks={racksState.racks}
               planWidth={planWidth}
               planHeight={planHeight}
-              slotStates={pickList.slots}
+              locationStates={pickList.locations}
               highlight={pickList.racks}
               focus={planFocus}
               loading={racksState.loading}
               canEdit={currentUser !== null}
               selection={selection}
               refreshToken={refreshToken}
-              onMoveItem={(item, slot) => void moveItem(item, slot)}
-              onDropOnRack={dropOnRack}
+              onMoveItem={(item, target, code) => void moveItem(item, target, code)}
               onEditItem={(item) => void editItem(item)}
               onDeleteItem={(item) => void deleteItem(item)}
             />
@@ -450,6 +468,7 @@ export function App() {
               onCreate={racksState.createRack}
               onUpdate={racksState.updateRack}
               onDelete={racksState.removeRack}
+              onPlanShapeChange={changePlanShape}
             />
           ) : settingsTab === 'history' ? (
             <MovementsView />
@@ -467,9 +486,7 @@ export function App() {
               theme={theme}
               onToggleTheme={toggleTheme}
               settings={settings}
-              racks={racksState.racks}
               onSettingsChanged={setSettings}
-              onRacksChanged={racksState.reload}
             />
           )}
         </Modal>

@@ -11,19 +11,25 @@ export function createTestContext() {
   return { db, app, userId: Number(user.lastInsertRowid) };
 }
 
-/** Rayonnage de test + ses cases générées. */
+/** Rayonnage de test avec ses étagères générées. */
 export async function createRack(request, app, overrides = {}) {
   const response = await request(app)
     .post('/api/racks')
-    .send({ label: 'Rayon test', shelves_count: 3, slots_per_shelf: 4, ...overrides });
+    .send({ label: 'Rayon test', shelves_count: 3, ...overrides });
   return response.body;
 }
 
-/** Retrouve l'identifiant d'une case depuis son étagère et sa colonne. */
-export function slotIdOf(rack, shelfIndex, slotIndex) {
-  const slot = rack.slots.find(
-    (candidate) => candidate.shelf_index === shelfIndex && candidate.slot_index === slotIndex,
-  );
-  if (!slot) throw new Error(`Case E${shelfIndex}-C${slotIndex} absente du rayonnage de test.`);
-  return slot.id;
+/** Zone de test (pile au sol, palette…) : aucun étage. */
+export async function createZone(request, app, overrides = {}) {
+  const response = await request(app)
+    .post('/api/racks')
+    .send({ kind: 'zone', label: 'Zone test', ...overrides });
+  return response.body;
+}
+
+/** Retrouve l'identifiant d'une étagère depuis son numéro (1 = en haut). */
+export function shelfIdOf(rack, shelfIndex) {
+  const shelf = rack.shelves.find((candidate) => candidate.shelf_index === shelfIndex);
+  if (!shelf) throw new Error(`Étagère E${shelfIndex} absente du rayonnage de test.`);
+  return shelf.id;
 }

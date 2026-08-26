@@ -31,14 +31,14 @@ afterEach(() => {
 });
 
 const seedRack = () =>
-  request(app).post('/api/racks').send({ label: 'Rayon test', shelves_count: 2, slots_per_shelf: 2 });
+  request(app).post('/api/racks').send({ label: 'Rayon test', shelves_count: 2 });
 
 describe('restauration d’une sauvegarde', () => {
   it('remet la base dans l’état de la copie', async () => {
     const rack = await seedRack();
     await request(app)
       .post('/api/items')
-      .send({ user_id: userId, reference: 'ARB123', slot_id: rack.body.slots[0].id });
+      .send({ user_id: userId, reference: 'ARB123', shelf_id: rack.body.shelves[0].id });
 
     const { file } = await runStartupBackup(db, backupsDir);
     const backupName = path.basename(file);
@@ -46,7 +46,7 @@ describe('restauration d’une sauvegarde', () => {
     // Modifications postérieures à la sauvegarde
     await request(app)
       .post('/api/items')
-      .send({ user_id: userId, reference: 'APRES1', slot_id: rack.body.slots[1].id });
+      .send({ user_id: userId, reference: 'APRES1', shelf_id: rack.body.shelves[1].id });
     expect((await request(app).get('/api/items')).body).toHaveLength(2);
 
     const response = await request(app)
@@ -68,7 +68,7 @@ describe('restauration d’une sauvegarde', () => {
 
     await request(app)
       .post('/api/items')
-      .send({ user_id: userId, reference: 'PERDU1', slot_id: rack.body.slots[0].id });
+      .send({ user_id: userId, reference: 'PERDU1', shelf_id: rack.body.shelves[0].id });
 
     const response = await request(app)
       .post(`/api/backups/${path.basename(file)}/restore`)
@@ -153,7 +153,7 @@ describe('jeu de démonstration', () => {
 
     const search = await request(app).get('/api/items/search?q=uk707el');
     expect(search.body.exact.reference_display).toBe('UK707E/L');
-    expect(search.body.exact.locations[0].code).toBe('R03-E1-C1');
+    expect(search.body.exact.locations[0].code).toBe('R03-E1');
     expect(search.body.exact.family_label).toContain('TGC22');
 
     const { body: movements } = await request(app).get('/api/movements');

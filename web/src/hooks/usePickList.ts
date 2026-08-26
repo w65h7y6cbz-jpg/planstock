@@ -7,7 +7,7 @@ import {
   rackHighlights,
   removePickEntry,
   setPickEntryChecked,
-  slotStates,
+  locationStates,
   splitPickList,
   togglePickEntry,
   type PickEntry,
@@ -44,7 +44,7 @@ export interface PickListState {
   physical: PickEntry[];
   withoutStock: PickEntry[];
   pending: number;
-  slots: Map<number, 'lit' | 'done'>;
+  locations: Map<string, 'lit' | 'done'>;
   racks: Map<number, { pending: number; done: number }>;
   /** Ligne à faire clignoter : référence déjà présente dans la liste. */
   flashedItemId: number | null;
@@ -104,7 +104,7 @@ export function usePickList(): PickListState {
       physical,
       withoutStock,
       pending: pendingPhysicalCount(entries),
-      slots: slotStates(entries),
+      locations: locationStates(entries),
       racks: rackHighlights(entries),
     };
   }, [entries]);

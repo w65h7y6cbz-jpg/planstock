@@ -109,9 +109,9 @@ export function MovementsView() {
                     {movement.item_designation || '—'}
                   </td>
                   <td className={styles.path}>
-                    {movement.from_slot_code ?? '—'}
+                    {movement.from_code ?? '—'}
                     <span className={styles.arrow}> → </span>
-                    {movement.to_slot_code ?? '—'}
+                    {movement.to_code ?? '—'}
                   </td>
                 </tr>
               ))}

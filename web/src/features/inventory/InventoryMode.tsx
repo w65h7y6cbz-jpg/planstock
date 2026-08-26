@@ -1,10 +1,13 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { ApiError, api, type RackPayload } from '../../api';
 import { PlanPanel } from '../../components/PlanPanel';
-import type { SlotSelection } from '../../components/RackView';
-import type { Item, Rack, SlotContent, User } from '../../types';
+import type { LocationSelection } from '../../components/RackView';
+import type { Item, Rack, Shelf, User } from '../../types';
 import { RackWizard } from './RackWizard';
 import styles from './InventoryMode.module.css';
+
+/** Destination courante : une étagère de rayonnage, ou une zone. */
+type Target = { kind: 'shelf'; shelf: Shelf } | { kind: 'zone'; zone: Rack } | null;
 
 interface InventoryModeProps {
   currentUser: User | null;
@@ -30,9 +33,13 @@ interface SavedEntry {
 const messageOf = (cause: unknown, fallback: string) =>
   cause instanceof ApiError || cause instanceof Error ? cause.message : fallback;
 
+const targetCode = (target: Target) =>
+  target === null ? null : target.kind === 'shelf' ? target.shelf.code : target.zone.rack_code;
+
 /**
- * Mode Inventaire initial : saisir réf → désignation → cliquer la case → suivant.
- * La dernière case reste sélectionnée pour enchaîner les articles d'une même case.
+ * Mode Inventaire initial : réf → désignation → clic sur une étagère (ou une
+ * zone) → suivant. Le dernier emplacement reste sélectionné pour vider un
+ * carton entier d'affilée avec la seule touche Entrée.
  */
 export function InventoryMode({
   currentUser,
@@ -48,15 +55,14 @@ export function InventoryMode({
 }: InventoryModeProps) {
   const [reference, setReference] = useState('');
   const [designation, setDesignation] = useState('');
-  const [targetSlot, setTargetSlot] = useState<SlotContent | null>(null);
-  const [awaitingSlot, setAwaitingSlot] = useState(false);
+  const [target, setTarget] = useState<Target>(null);
+  const [awaiting, setAwaiting] = useState(false);
   const [saved, setSaved] = useState<SavedEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
   const referenceRef = useRef<HTMLInputElement>(null);
-
-  const emptySlotStates = useMemo(() => new Map(), []);
+  const emptyStates = useMemo(() => new Map(), []);
   const emptyHighlight = useMemo(() => new Map(), []);
 
   const userPicker = (
@@ -86,10 +92,10 @@ export function InventoryMode({
     referenceRef.current?.focus();
   }, []);
 
-  /** Enregistrement effectif. La case est passée explicitement : au moment du
-   *  clic sur le plan, l'état `targetSlot` n'est pas encore à jour. */
+  /** Enregistrement effectif. L'emplacement est passé explicitement : au moment
+   *  du clic sur le plan, l'état `target` n'est pas encore à jour. */
   const persist = useCallback(
-    async (kind: 'physical' | 'service', slot: SlotContent | null) => {
+    async (kind: 'physical' | 'service', where: Target) => {
       if (!currentUser) {
         setError('Sélectionnez votre prénom avant de saisir l’inventaire.');
         return;
@@ -99,7 +105,8 @@ export function InventoryMode({
           reference: reference.trim().toUpperCase(),
           designation: designation.trim(),
           kind,
-          slot_id: kind === 'physical' ? (slot?.id ?? null) : null,
+          shelf_id: kind === 'physical' && where?.kind === 'shelf' ? where.shelf.id : null,
+          zone_id: kind === 'physical' && where?.kind === 'zone' ? where.zone.id : null,
         });
 
         setSaved((current) => [
@@ -110,7 +117,7 @@ export function InventoryMode({
           },
           ...current,
         ]);
-        setAwaitingSlot(false);
+        setAwaiting(false);
         setRefreshToken((token) => token + 1);
         onItemSaved();
         backToReference();
@@ -129,43 +136,44 @@ export function InventoryMode({
         referenceRef.current?.focus();
         return;
       }
-      if (kind === 'physical' && !targetSlot) {
-        // Aucune case encore choisie : on attend un clic sur le plan.
-        setAwaitingSlot(true);
+      if (kind === 'physical' && !target) {
+        // Aucun emplacement encore choisi : on attend un clic sur le plan.
+        setAwaiting(true);
         setError(null);
         return;
       }
-      await persist(kind, targetSlot);
+      await persist(kind, target);
     },
-    [reference, targetSlot, persist],
+    [reference, target, persist],
   );
 
-  /** Un clic sur une case la sélectionne, et enregistre si on l'attendait. */
-  const selectSlot = useCallback(
-    (slot: SlotContent) => {
-      setTargetSlot(slot);
+  /** Un clic sur une étagère ou une zone la sélectionne, et enregistre si on l'attendait. */
+  const choose = useCallback(
+    (next: Target) => {
+      setTarget(next);
       setError(null);
 
-      if (awaitingSlot && reference.trim()) {
-        void persist('physical', slot);
+      if (awaiting && reference.trim()) {
+        void persist('physical', next);
         return;
       }
-      setAwaitingSlot(false);
-      // Le clic a déplacé le focus sur la case : on le rend au champ Référence
-      // pour que la frappe suivante ne se perde pas dans le plan.
+      setAwaiting(false);
+      // Le clic a déplacé le focus sur le plan : on le rend au champ Référence
+      // pour que la frappe suivante ne se perde pas.
       referenceRef.current?.focus();
     },
-    [awaitingSlot, reference, persist],
+    [awaiting, reference, persist],
   );
 
-  const selection: SlotSelection = useMemo(
+  const selection: LocationSelection = useMemo(
     () => ({
-      label: awaitingSlot
-        ? `Cliquez la case où ranger ${reference.trim().toUpperCase() || 'cet article'}.`
-        : 'Cliquez une case pour changer la destination.',
-      onSelect: selectSlot,
+      label: awaiting
+        ? `Cliquez l’étagère ou la zone où ranger ${reference.trim().toUpperCase() || 'cet article'}.`
+        : 'Cliquez une étagère ou une zone pour changer la destination.',
+      onSelectShelf: (shelf) => choose({ kind: 'shelf', shelf }),
+      onSelectZone: (zone) => choose({ kind: 'zone', zone }),
     }),
-    [awaitingSlot, reference, selectSlot],
+    [awaiting, reference, choose],
   );
 
   async function createRacks(payloads: RackPayload[]) {
@@ -268,14 +276,14 @@ export function InventoryMode({
 
             <div className={styles.target}>
               <span className={styles.targetLabel}>
-                {awaitingSlot ? 'En attente d’un clic sur le plan' : 'Case de destination'}
+                {awaiting ? 'En attente d’un clic sur le plan' : 'Emplacement de destination'}
               </span>
               <span
-                className={`${styles.targetCode} ${targetSlot ? '' : styles.targetEmpty} ${
-                  awaitingSlot ? styles.awaiting : ''
+                className={`${styles.targetCode} ${target ? '' : styles.targetEmpty} ${
+                  awaiting ? styles.awaiting : ''
                 }`}
               >
-                {targetSlot?.code ?? 'à choisir'}
+                {targetCode(target) ?? 'à choisir'}
               </span>
             </div>
 
@@ -300,9 +308,10 @@ export function InventoryMode({
 
             <p className={styles.hint}>
               <span className={styles.kbd}>Tab</span> pour passer à la désignation,{' '}
-              <span className={styles.kbd}>Entrée</span> pour enregistrer. La dernière case reste
-              sélectionnée : <span className={styles.kbd}>Entrée</span> seul range l’article suivant
-              au même endroit. Cliquez une autre case du plan pour changer de destination.
+              <span className={styles.kbd}>Entrée</span> pour enregistrer. Le dernier emplacement
+              reste sélectionné : <span className={styles.kbd}>Entrée</span> seul range l’article
+              suivant au même endroit — pratique pour vider un carton. Cliquez une autre étagère ou
+              une zone pour changer de destination.
             </p>
           </div>
 
@@ -334,7 +343,7 @@ export function InventoryMode({
               racks={racks}
               planWidth={planWidth}
               planHeight={planHeight}
-              slotStates={emptySlotStates}
+              locationStates={emptyStates}
               highlight={emptyHighlight}
               focus={null}
               loading={racksLoading}
@@ -342,7 +351,6 @@ export function InventoryMode({
               selection={selection}
               refreshToken={refreshToken}
               onMoveItem={() => undefined}
-              onDropOnRack={() => undefined}
               onEditItem={() => undefined}
               onDeleteItem={() => undefined}
             />
